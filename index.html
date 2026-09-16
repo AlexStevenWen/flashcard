@@ -25,15 +25,19 @@
     -webkit-font-smoothing:antialiased; -webkit-text-size-adjust:100%;
   }
   .app{max-width:1080px;margin:0 auto;padding:16px 14px 70px;padding-left:max(14px,env(safe-area-inset-left));padding-right:max(14px,env(safe-area-inset-right))}
-
-  /* ---- 頂欄 ---- */
   .topbar{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:12px}
   .brand{font-size:20px;font-weight:800;letter-spacing:.3px;display:flex;align-items:center;gap:6px}
   .hstats{display:flex;gap:6px;flex-wrap:wrap;font-size:12px}
   .hstat{background:var(--panel);border:1px solid var(--line);border-radius:999px;padding:4px 11px;color:var(--muted);white-space:nowrap}
   .hstat b{color:var(--text);font-size:13px}
-
-  /* ---- 分頁 ---- */
+  .hstat.cloud{background:#dbeafe;border-color:#93c5fd;color:#1e40af}
+  .hstat.cloud b{color:#1e40af}
+  .hstat.syncing{background:#fef3c7;border-color:#fcd34d;color:#92400e}
+  @media (prefers-color-scheme: dark){
+    .hstat.cloud{background:#1e3a8a33;border-color:#1e40af;color:#93c5fd}
+    .hstat.cloud b{color:#93c5fd}
+    .hstat.syncing{background:#78350f33;border-color:#92400e;color:#fcd34d}
+  }
   .tabs-wrap{position:relative;margin-bottom:14px}
   .tabs{display:flex;gap:4px;background:var(--panel);padding:5px;border-radius:999px;
         border:1px solid var(--line);overflow-x:auto;scrollbar-width:none;-webkit-overflow-scrolling:touch}
@@ -42,8 +46,6 @@
         font-size:14px;color:var(--muted);font-weight:600;transition:.18s;white-space:nowrap;flex-shrink:0;font-family:inherit}
   .tabs button:hover{color:var(--text)}
   .tabs button.active{background:var(--pri);color:#fff}
-
-  /* ---- 通用 ---- */
   .panel{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);padding:16px}
   .muted{color:var(--muted)}
   .input{background:var(--bg);border:1px solid var(--line);color:var(--text);border-radius:10px;
@@ -62,8 +64,6 @@
   .toolbar{display:flex;gap:9px;flex-wrap:wrap;align-items:center;margin-bottom:14px}
   .grow{flex:1;min-width:160px}
   .empty{text-align:center;padding:50px 20px;color:var(--muted);font-size:15px}
-
-  /* ---- 字卡瀏覽 ---- */
   .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:13px}
   .cardbox{display:flex;flex-direction:column;gap:7px}
   .fcard{perspective:1000px;height:130px;cursor:pointer}
@@ -82,8 +82,6 @@
   .icon-btn{border:1px solid var(--line);background:var(--panel);border-radius:9px;width:30px;height:30px;
     cursor:pointer;font-size:14px;line-height:1;display:flex;align-items:center;justify-content:center;color:var(--text);flex-shrink:0}
   .icon-btn:hover{border-color:var(--pri)}
-
-  /* ---- 學習頁 ---- */
   .setup h2{margin:0 0 6px;font-size:19px}
   .setup-row{display:flex;gap:12px;flex-wrap:wrap;margin:16px 0 20px}
   .setup-row label{display:flex;flex-direction:column;gap:6px;font-size:12px;font-weight:700;color:var(--muted);flex:1;min-width:140px}
@@ -113,8 +111,6 @@
   .grade b{font-size:10px;opacity:.55;font-weight:700}
   .grade:hover{background:var(--c);color:#fff}
   .hint{text-align:center;font-size:12px;color:var(--muted);margin-top:16px}
-
-  /* ---- 統計 ---- */
   .modeSwitch{display:flex;gap:5px;background:var(--panel);padding:5px;border-radius:999px;
     border:1px solid var(--line);margin-bottom:14px;overflow-x:auto;scrollbar-width:none}
   .modeSwitch::-webkit-scrollbar{display:none}
@@ -124,7 +120,6 @@
   .modeSwitch button.active[data-m="all"]{background:var(--pri)}
   .modeSwitch button.active[data-m="visual"]{background:var(--visual)}
   .modeSwitch button.active[data-m="listen"]{background:var(--listen)}
-
   .kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(112px,1fr));gap:11px;margin:0 0 14px}
   .kpi{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:14px 8px;text-align:center}
   .kpi-v{font-size:25px;font-weight:800;color:var(--pri);line-height:1.1}
@@ -140,8 +135,6 @@
   .cbar-fill{width:100%;border-radius:5px 5px 0 0;min-height:3px;transition:height .4s;opacity:.85}
   .cbar-lb{font-size:10px;color:var(--muted);white-space:nowrap}
   .two{display:grid;grid-template-columns:1fr 1fr;gap:13px}
-
-  /* 對比表 */
   .cmp{display:grid;grid-template-columns:1.4fr 1fr 1fr;gap:0;font-size:13px}
   .cmp > div{padding:9px 6px;border-bottom:1px solid var(--line)}
   .cmp .h{font-weight:800;font-size:12px;color:var(--muted);border-bottom:2px solid var(--line)}
@@ -151,36 +144,41 @@
   .cmp .v.visual{color:var(--visual)}
   .cmp .v.listen{color:var(--listen)}
   .cmp .last{border-bottom:0}
-
   .done{text-align:center;padding:40px 20px}
   .done-emoji{font-size:54px}
   .done h2{margin:8px 0 4px}
   .done-actions{display:flex;gap:10px;justify-content:center;flex-wrap:wrap;margin-top:12px}
-
-  /* 設定 */
   .setrow{display:flex;justify-content:space-between;align-items:center;gap:14px;padding:13px 0;
     border-bottom:1px solid var(--line);flex-wrap:wrap}
   .setrow:last-child{border-bottom:0}
   .setrow .lbl{font-size:14px;font-weight:700;flex:1;min-width:180px}
-  .setrow .sub{font-size:12px;color:var(--muted);margin-top:3px;font-weight:400;line-height:1.5}
-
-  /* 表格滾動 */
+  .setrow .sub{font-size:12px;color:var(--muted);margin-top:3px;font-weight:400;line-height:1.6}
+  .cloudBadge{display:inline-flex;align-items:center;gap:6px;font-size:13px;font-weight:700;
+    background:#dbeafe;color:#1e40af;padding:5px 12px;border-radius:999px}
+  @media (prefers-color-scheme: dark){
+    .cloudBadge{background:#1e3a8a33;color:#93c5fd}
+  }
+  code{background:var(--bg);padding:2px 6px;border-radius:4px;font-size:12px;color:var(--pri);word-break:break-all}
+  .steps{counter-reset:s;padding:0;margin:10px 0 0;list-style:none}
+  .steps li{counter-increment:s;padding:10px 0 10px 34px;position:relative;font-size:13px;line-height:1.7;border-top:1px solid var(--line)}
+  .steps li:first-child{border-top:0}
+  .steps li::before{content:counter(s);position:absolute;left:0;top:10px;
+    width:24px;height:24px;background:var(--pri);color:#fff;border-radius:50%;
+    display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:800}
+  details{margin-top:10px}
+  summary{cursor:pointer;font-size:13px;font-weight:700;color:var(--pri);padding:6px 0}
+  summary:hover{opacity:.8}
   .tableWrap{overflow-x:auto;-webkit-overflow-scrolling:touch;margin:0 -4px;padding:0 4px}
   table{width:100%;border-collapse:collapse;font-size:13px;min-width:520px}
   thead tr{text-align:left;color:var(--muted)}
-
   .toast{position:fixed;left:50%;bottom:30px;transform:translateX(-50%);background:#111827;color:#fff;
     padding:11px 20px;border-radius:999px;font-size:14px;z-index:999;animation:pop .25s;font-weight:600;
     max-width:90vw;text-align:center}
   @keyframes pop{from{opacity:0;transform:translate(-50%,12px)}}
-
-  .spin{display:inline-block;animation:rot 1s linear infinite}
+  .spinner{display:inline-block;width:12px;height:12px;border:2px solid currentColor;border-top-color:transparent;
+    border-radius:50%;animation:rot .8s linear infinite;vertical-align:middle;margin-right:4px}
   @keyframes rot{to{transform:rotate(360deg)}}
-
-  /* ================= 響應式 ================= */
-  @media (max-width: 720px){
-    .two{grid-template-columns:1fr}
-  }
+  @media (max-width: 720px){ .two{grid-template-columns:1fr} }
   @media (max-width: 560px){
     .app{padding:12px 10px 80px}
     .brand{font-size:17px}
@@ -242,7 +240,7 @@
 /* =========================================================
    1. 常數與工具
    ========================================================= */
-const STORAGE_KEY = 'flashcard-master-v3';
+const STORAGE_KEY = 'flashcard-master-v4';
 
 const LEVELS = [
   { lv:1, name:'不記得',   color:'#dc2626', days:0  },
@@ -305,7 +303,13 @@ function toast(msg){
   t.className = 'toast';
   t.innerHTML = msg;
   document.body.appendChild(t);
-  setTimeout(() => t.remove(), 2200);
+  setTimeout(() => t.remove(), 2400);
+}
+function base64ToBytes(b64){
+  const bin = atob(b64);
+  const bytes = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+  return bytes;
 }
 
 /* =========================================================
@@ -317,8 +321,8 @@ function defaultStore(){
     progress: {},
     logs: [],
     settings: {
-      lang:'en-US', rate:0.9, autoSpeak:true, showFrontInListen:false,
-      cloudUrl:'', autoSync:true, lastSync:0,
+      lang:'en-US', rate:0.9, showFrontInListen:false,
+      cloudUrl:'', folderId:'', autoSync:true,
     },
     ui: { q:'', deck:'all', level:'all' },
     created: Date.now(),
@@ -348,7 +352,191 @@ function save(){
 }
 
 /* =========================================================
-   3. 語音
+   3. 雲端資料夾狀態
+   ========================================================= */
+const cloudState = {
+  connected: false,
+  syncing: false,
+  lastSync: 0,
+  fileCount: 0,
+  cardCount: 0,
+  error: '',
+};
+let uploadTimer = null;
+
+function cloudReady(){
+  return !!(store.settings.cloudUrl && store.settings.folderId);
+}
+
+/* --- 下載：抓取雲端資料夾所有卡片 + 進度 --- */
+async function syncFromCloud(silent){
+  if (!cloudReady()){
+    if (!silent) toast('尚未設定雲端資料夾');
+    return;
+  }
+  if (cloudState.syncing) return;
+
+  cloudState.syncing = true;
+  cloudState.error = '';
+  updateHeader();
+  if (!silent) toast('<span class="spinner"></span>雲端同步中…');
+
+  try {
+    const { cloudUrl, folderId } = store.settings;
+    const sep = cloudUrl.includes('?') ? '&' : '?';
+
+    // 1) 抓卡片檔列表
+    const listRes = await fetch(`${cloudUrl}${sep}action=list&folderId=${encodeURIComponent(folderId)}&_=${Date.now()}`);
+    if (!listRes.ok) throw new Error('HTTP ' + listRes.status);
+    const listData = await listRes.json();
+    if (!listData.ok) throw new Error(listData.error || '讀取失敗');
+
+    const files = listData.files || [];
+    const decks = [];
+    for (const f of files){
+      try {
+        const cards = parseCloudFile(f);
+        if (cards.length) decks.push({ name: f.name, cards });
+      } catch(e){ console.warn('解析失敗：' + f.name, e); }
+    }
+
+    applyDecks(decks);
+
+    // 2) 抓進度
+    try {
+      const metaRes = await fetch(`${cloudUrl}${sep}action=meta&folderId=${encodeURIComponent(folderId)}&_=${Date.now()}`);
+      if (metaRes.ok){
+        const metaData = await metaRes.json();
+        if (metaData.ok && metaData.data){
+          const parsed = JSON.parse(metaData.data);
+          if (parsed.progress) store.progress = parsed.progress;
+          if (parsed.logs) store.logs = parsed.logs;
+        }
+      }
+    } catch(e){ console.warn('讀取進度失敗', e); }
+
+    cloudState.connected = true;
+    cloudState.lastSync = Date.now();
+    cloudState.fileCount = files.length;
+    cloudState.cardCount = store.cards.length;
+
+    save();
+    if (!session) render(); else updateHeader();
+    if (!silent) toast(`✅ 雲端同步完成：${files.length} 檔 · ${store.cards.length} 張卡片`);
+  } catch(e){
+    cloudState.error = e.message;
+    console.warn(e);
+    if (!silent) toast('❌ 同步失敗：' + e.message);
+  } finally {
+    cloudState.syncing = false;
+    updateHeader();
+  }
+}
+
+/* --- 解析單一雲端檔案（base64） --- */
+function parseCloudFile(file){
+  let wb;
+  const bytes = base64ToBytes(file.base64);
+  if (file.ext === 'csv'){
+    const text = new TextDecoder('utf-8').decode(bytes);
+    wb = XLSX.read(text, { type:'string' });
+  } else {
+    wb = XLSX.read(bytes, { type:'array', cellDates:true });
+  }
+  const ws = wb.Sheets[wb.SheetNames[0]];
+  if (!ws) return [];
+  const rows = XLSX.utils.sheet_to_json(ws, { header:1, blankrows:false, defval:'' });
+  if (rows.length < 2) return [];
+
+  const head = rows[0].map(x => String(x).trim());
+  const findIdx = (keys) => head.findIndex(h => {
+    const s = h.toLowerCase();
+    return keys.some(k => s.includes(k.toLowerCase()));
+  });
+  const idx = {
+    front: findIdx(FRONT_KEYS),
+    back:  findIdx(BACK_KEYS),
+    note:  findIdx(NOTE_KEYS),
+  };
+  if (idx.front < 0 || idx.back < 0) return [];
+
+  const deckName = file.name.replace(/\.[^.]+$/, '');
+  const cards = [];
+  for (let i = 1; i < rows.length; i++){
+    const r = rows[i] || [];
+    const front = String(r[idx.front] ?? '').trim();
+    const back  = String(r[idx.back]  ?? '').trim();
+    if (!front || !back) continue;
+    cards.push({
+      front, back,
+      note: idx.note >= 0 ? String(r[idx.note] ?? '').trim() : '',
+      deck: deckName,
+    });
+  }
+  return cards;
+}
+
+/* --- 合併雲端卡片（保留既有 id 與進度） --- */
+function applyDecks(decks){
+  const byKey = new Map(store.cards.map(c => [c.front + '\u0001' + c.back, c]));
+  const newCards = [];
+
+  decks.forEach(({ cards }) => {
+    cards.forEach(c => {
+      const key = c.front + '\u0001' + c.back;
+      const exist = byKey.get(key);
+      if (exist){
+        exist.note = c.note;
+        exist.deck = c.deck;
+        newCards.push(exist);
+      } else {
+        newCards.push({
+          id: uid(), front: c.front, back: c.back,
+          note: c.note, deck: c.deck, created: Date.now(),
+        });
+      }
+    });
+  });
+
+  store.cards = newCards;
+}
+
+/* --- 上傳：把進度寫回雲端（防抖 2 秒） --- */
+function scheduleUpload(){
+  if (!cloudReady()) return;
+  clearTimeout(uploadTimer);
+  uploadTimer = setTimeout(uploadToCloud, 2000);
+}
+async function uploadToCloud(){
+  if (!cloudReady()) return;
+  try {
+    const { cloudUrl, folderId } = store.settings;
+    await fetch(cloudUrl, {
+      method: 'POST',
+      body: JSON.stringify({
+        action: 'saveProgress',
+        folderId,
+        data: JSON.stringify({
+          progress: store.progress,
+          logs: store.logs.slice(-10000),
+          savedAt: Date.now(),
+        }),
+      }),
+    });
+    cloudState.lastSync = Date.now();
+  } catch(e){ console.warn('上傳失敗', e); }
+}
+
+/* --- 強制上傳（離開頁面時） --- */
+function flushUpload(){
+  if (uploadTimer){
+    clearTimeout(uploadTimer);
+    uploadToCloud();
+  }
+}
+
+/* =========================================================
+   4. 語音
    ========================================================= */
 let voices = [];
 function loadVoices(){ voices = window.speechSynthesis ? speechSynthesis.getVoices() : []; }
@@ -382,7 +570,7 @@ function speak(text, lang){
 }
 
 /* =========================================================
-   4. 進度演算法
+   5. 進度演算法
    ========================================================= */
 function newProgress(){
   return { level:0, ease:2.5, interval:0, due:0, reps:0, lapses:0, last:0 };
@@ -414,10 +602,11 @@ function gradeCard(cardId, level, mode){
   store.logs.push({ t: Date.now(), id: cardId, lv: level, mode });
   if (store.logs.length > 30000) store.logs = store.logs.slice(-20000);
   save();
+  scheduleUpload();
 }
 
 /* =========================================================
-   5. 佇列
+   6. 佇列
    ========================================================= */
 function buildQueue(opts){
   let list = store.cards.slice();
@@ -440,18 +629,31 @@ function buildQueue(opts){
 }
 
 /* =========================================================
-   6. 主渲染
+   7. 主渲染
    ========================================================= */
 let currentTab = 'browse';
 let session = null;
-let statsMode = 'all';   // all | visual | listen
+let statsMode = 'all';
 
 function updateHeader(){
   const total  = store.cards.length;
   const due    = store.cards.filter(c => isDue(c.id)).length;
   const today  = dateKey();
   const todayN = store.logs.filter(l => dateKey(new Date(l.t)) === today).length;
+
+  let cloudBadge = '';
+  if (cloudState.syncing){
+    cloudBadge = `<span class="hstat syncing"><span class="spinner"></span>同步中</span>`;
+  } else if (cloudState.error){
+    cloudBadge = `<span class="hstat" style="background:#fee2e2;border-color:#fca5a5;color:#991b1b">☁️ 同步錯誤</span>`;
+  } else if (cloudState.connected && cloudState.lastSync){
+    cloudBadge = `<span class="hstat cloud">☁️ <b>${cloudState.fileCount} 檔</b></span>`;
+  } else if (cloudReady()){
+    cloudBadge = `<span class="hstat">☁️ 待同步</span>`;
+  }
+
   $('#hstats').innerHTML = `
+    ${cloudBadge}
     <span class="hstat">卡片 <b>${total}</b></span>
     <span class="hstat">待複習 <b>${due}</b></span>
     <span class="hstat">今日 <b>${todayN}</b></span>`;
@@ -468,7 +670,7 @@ function render(){
 }
 
 /* =========================================================
-   7. 字卡瀏覽
+   8. 字卡瀏覽
    ========================================================= */
 function filteredCards(){
   const q = (store.ui.q || '').trim().toLowerCase();
@@ -501,6 +703,7 @@ function renderBrowse(){
             return `<option value="${n}" ${store.ui.level === String(n) ? 'selected' : ''}>${l.name}</option>`;
           }).join('')}
         </select>
+        ${cloudReady() ? '<button class="btn ghost" id="quickSync" title="立即同步">☁️ 同步</button>' : ''}
         <span class="muted" id="cnt" style="font-size:13px"></span>
       </div>
       <div id="grid" class="grid"></div>
@@ -509,6 +712,8 @@ function renderBrowse(){
   $('#q').oninput = e => { store.ui.q = e.target.value; renderGrid(); };
   $('#fDeck').onchange = e => { store.ui.deck = e.target.value; renderGrid(); };
   $('#fLevel').onchange = e => { store.ui.level = e.target.value; renderGrid(); };
+  const qs = $('#quickSync');
+  if (qs) qs.onclick = () => syncFromCloud(false);
   renderGrid();
 }
 
@@ -520,9 +725,11 @@ function renderGrid(){
   if (cnt) cnt.textContent = `${list.length} 張`;
 
   if (!list.length){
-    grid.innerHTML = `<div class="empty" style="grid-column:1/-1">
-      ${store.cards.length ? '沒有符合條件的卡片 🔍' : '還沒有卡片，去「⚙️ 設定」匯入或同步吧！'}
-    </div>`;
+    let msg;
+    if (store.cards.length) msg = '沒有符合條件的卡片 🔍';
+    else if (cloudReady()) msg = '雲端資料夾還沒有卡片 ☁️<br><span style="font-size:13px">請在 Google Drive 資料夾放入 .xlsx / .csv</span>';
+    else msg = '還沒有卡片，去「⚙️ 設定」連接雲端資料夾吧！';
+    grid.innerHTML = `<div class="empty" style="grid-column:1/-1">${msg}</div>`;
     return;
   }
 
@@ -562,7 +769,8 @@ function renderGrid(){
       if (btn.dataset.act === 'speak') speak(card.front);
       if (btn.dataset.act === 'reset'){
         delete store.progress[id];
-        save(); renderGrid(); updateHeader();
+        save(); scheduleUpload();
+        renderGrid(); updateHeader();
         toast('已重置這張卡');
       }
       return;
@@ -572,7 +780,7 @@ function renderGrid(){
 }
 
 /* =========================================================
-   8. 學習模式
+   9. 學習模式
    ========================================================= */
 function renderStudyUI(mode){
   if (session && session.mode === mode){
@@ -620,7 +828,7 @@ function drawSetup(mode){
         </label>
       </div>
       <button class="btn primary big" id="startBtn">開始學習</button>
-      ${store.cards.length ? '' : '<p class="muted" style="margin-top:16px;font-size:13px">⚠️ 目前沒有卡片，請先到「⚙️ 設定」匯入或同步。</p>'}
+      ${store.cards.length ? '' : '<p class="muted" style="margin-top:16px;font-size:13px">⚠️ 目前沒有卡片，請先連接雲端資料夾或匯入 Excel。</p>'}
     </div>`;
 
   $('#startBtn').onclick = () => {
@@ -757,6 +965,7 @@ function drawDone(mode){
         <div class="kpi"><div class="kpi-v">${s ? s.done : 0}</div><div class="kpi-l">複習張數</div></div>
         <div class="kpi"><div class="kpi-v">${acc}%</div><div class="kpi-l">記得率</div></div>
       </div>
+      ${cloudReady() ? '<p class="muted" style="font-size:12px;margin-top:10px">☁️ 進度將自動上傳到雲端</p>' : ''}
       <div class="done-actions">
         <button class="btn primary" id="againBtn">再來一輪</button>
         <button class="btn ghost" id="backBtn">回到設定</button>
@@ -770,7 +979,7 @@ function drawDone(mode){
 }
 
 /* =========================================================
-   9. 統計（拆分視覺 / 聽力）
+   10. 統計
    ========================================================= */
 function logsByMode(mode){
   if (mode === 'all') return store.logs;
@@ -800,15 +1009,11 @@ function renderStats(){
 
   const masteryRate = total ? Math.round((counts[5] + counts[4]) / total * 100) : 0;
 
-  // 依當前 mode 過濾的統計
   const modeLogs = logsByMode(statsMode);
   const S = calcStats(modeLogs);
-
-  // 視覺 / 聽力 對比（永遠顯示）
   const cmpV = calcStats(logsByMode('visual'));
   const cmpL = calcStats(logsByMode('listen'));
 
-  // 近 14 天（依 mode）
   const days = [];
   for (let i = 13; i >= 0; i--){
     const d = new Date(); d.setDate(d.getDate() - i);
@@ -818,7 +1023,6 @@ function renderStats(){
   }
   const maxDay = Math.max(1, ...days.map(d => d.n));
 
-  // 近 14 天視覺 vs 聽力 疊圖
   const stackDays = [];
   for (let i = 13; i >= 0; i--){
     const d = new Date(); d.setDate(d.getDate() - i);
@@ -829,7 +1033,6 @@ function renderStats(){
   }
   const maxStack = Math.max(1, ...stackDays.map(d => d.v + d.l));
 
-  // 未來 7 天到期（卡片維度，不分 mode）
   const future = [];
   for (let i = 0; i < 7; i++){
     const start = new Date(); start.setHours(0,0,0,0); start.setDate(start.getDate() + i);
@@ -843,7 +1046,6 @@ function renderStats(){
   }
   const maxFut = Math.max(1, ...future.map(f => f.n));
 
-  // 牌組統計
   const deckMap = {};
   store.cards.forEach(c => {
     const d = c.deck || '預設';
@@ -878,19 +1080,15 @@ function renderStats(){
         <div class="h"></div>
         <div class="h visual">🔄 視覺</div>
         <div class="h listen">🎧 聽力</div>
-
         <div>累計複習次數</div>
         <div class="v visual">${cmpV.total}</div>
         <div class="v listen">${cmpL.total}</div>
-
         <div>累計記得率</div>
         <div class="v visual">${cmpV.total ? cmpV.acc + '%' : '—'}</div>
         <div class="v listen">${cmpL.total ? cmpL.acc + '%' : '—'}</div>
-
         <div>今日複習次數</div>
         <div class="v visual">${cmpV.today}</div>
         <div class="v listen">${cmpL.today}</div>
-
         <div class="last">今日記得率</div>
         <div class="v visual last">${cmpV.today ? cmpV.todayAcc + '%' : '—'}</div>
         <div class="v listen last">${cmpL.today ? cmpL.todayAcc + '%' : '—'}</div>
@@ -988,7 +1186,6 @@ function renderStats(){
     </div>
   `;
 
-  // 模式切換
   $('#modeSwitch').onclick = e => {
     const b = e.target.closest('button[data-m]');
     if (!b) return;
@@ -998,56 +1195,101 @@ function renderStats(){
 }
 
 /* =========================================================
-   10. 設定
+   11. 設定
    ========================================================= */
 function renderSettings(){
-  const hasCloud = !!store.settings.cloudUrl;
+  const ready = cloudReady();
+
   $('#view').innerHTML = `
     <div class="panel" style="margin-bottom:13px">
-      <h3>☁️ 雲端卡片庫（Google Sheets）</h3>
-      <div class="setrow">
-        <div class="lbl">
-          卡片庫網址
-          <div class="sub">在 Google Sheets 發布成 CSV 後的連結。開啟程式時會自動抓取最新卡片。</div>
+      <h3>☁️ 雲端資料夾卡片庫（Google Drive）</h3>
+      ${ready ? `
+        <div class="setrow">
+          <div class="lbl">
+            <span class="cloudBadge">☁️ 已連接</span>
+            <div class="sub" style="margin-top:6px">
+              ${cloudState.connected
+                ? `${cloudState.fileCount} 個檔案 · ${cloudState.cardCount} 張卡片<br>
+                   最後同步：${cloudState.lastSync ? formatDate(cloudState.lastSync) : '—'}`
+                : '尚未完成首次同步'}
+              ${cloudState.error ? `<br><span style="color:#dc2626">錯誤：${esc(cloudState.error)}</span>` : ''}
+            </div>
+          </div>
+          <div style="display:flex;gap:8px;flex-wrap:wrap">
+            <button class="btn primary" id="syncNow">${cloudState.syncing ? '<span class="spinner"></span>同步中' : '🔄 立即同步'}</button>
+            <button class="btn ghost" id="disconnectCloud" style="color:#dc2626;border-color:#dc2626">中斷</button>
+          </div>
         </div>
-      </div>
-      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:6px">
-        <input id="cloudUrl" class="input grow" placeholder="https://docs.google.com/spreadsheets/d/e/…/pub?output=csv"
+        <div class="setrow">
+          <div class="lbl">開啟時自動同步
+            <div class="sub">每次打開程式自動抓取雲端最新卡片</div>
+          </div>
+          <input type="checkbox" id="autoSync" ${store.settings.autoSync ? 'checked' : ''}
+                 style="width:20px;height:20px;cursor:pointer" />
+        </div>
+        <div class="setrow" style="border-bottom:0">
+          <div class="sub" style="font-size:12px;line-height:1.7">
+            ☁️ 卡片：從雲端資料夾下載（.xlsx / .csv）<br>
+            💾 進度：每次評分後自動上傳回 <code>_progress.json</code><br>
+            📌 換裝置只要貼上同樣的網址與資料夾 ID，進度立刻接續
+          </div>
+        </div>
+      ` : `
+        <div class="setrow">
+          <div class="lbl">Web App 網址
+            <div class="sub">Apps Script 部署後產生的網址（結尾是 <code>/exec</code>）</div>
+          </div>
+        </div>
+        <input id="inputCloudUrl" class="input" style="width:100%;margin-bottom:10px"
+               placeholder="https://script.google.com/macros/s/AKfy…/exec"
                value="${esc(store.settings.cloudUrl)}" />
-        <button class="btn primary" id="saveCloud">儲存</button>
-        <button class="btn ghost" id="syncNow" ${hasCloud ? '' : 'disabled'}>立即同步</button>
-      </div>
-      <div class="setrow" style="margin-top:12px">
-        <div class="lbl">
-          開啟時自動同步
-          <div class="sub">每次打開程式自動抓取雲端最新卡片</div>
+
+        <div class="setrow">
+          <div class="lbl">Google Drive 資料夾 ID
+            <div class="sub">從資料夾網址 <code>/folders/</code> 後面複製那串</div>
+          </div>
         </div>
-        <input type="checkbox" id="autoSync" ${store.settings.autoSync ? 'checked' : ''}
-               style="width:20px;height:20px;cursor:pointer" />
-      </div>
-      <div class="setrow" style="border-bottom:0">
-        <div class="sub" style="font-size:12px;line-height:1.6">
-          最後同步：${store.settings.lastSync ? formatDate(store.settings.lastSync) : '尚未同步'}<br>
-          📌 雲端只提供「卡片內容」。學習進度、統計紀錄仍存在此瀏覽器，不會上傳。
-        </div>
-      </div>
+        <input id="inputFolderId" class="input" style="width:100%;margin-bottom:12px"
+               placeholder="1AbC…XyZ"
+               value="${esc(store.settings.folderId)}" />
+
+        <button class="btn primary" id="connectCloud" style="width:100%;max-width:340px">🔗 連接並同步</button>
+
+        <details>
+          <summary>📖 如何設定？（首次使用必看）</summary>
+          <ol class="steps">
+            <li>在 Google Drive 建立一個資料夾，把 <code>.xlsx</code> / <code>.csv</code> 卡片放進去<br>
+              <span class="muted" style="font-size:12px">每個檔案 = 一個牌組，第一列需有「正面」「背面」欄位</span>
+            </li>
+            <li>從資料夾網址複製 ID<br>
+              <code>drive.google.com/drive/folders/<b>1AbC...XyZ</b></code>
+            </li>
+            <li>前往 <a href="https://script.google.com" target="_blank" style="color:var(--pri)">script.google.com</a> → 新增專案</li>
+            <li>貼上後端程式碼（見說明），然後 <b>部署 → 新增部署 → 網頁應用程式</b><br>
+              <span class="muted" style="font-size:12px">執行身分：我　·　存取權：任何人</span>
+            </li>
+            <li>複製 Web App URL（結尾 <code>/exec</code>），貼到上方欄位</li>
+            <li>按「連接並同步」，完成！</li>
+          </ol>
+        </details>
+      `}
     </div>
 
     <div class="panel" style="margin-bottom:13px">
-      <h3>📥 匯入 / 匯出 Excel</h3>
+      <h3>📥 匯入 / 匯出 Excel（備援）</h3>
       <div class="setrow">
         <div class="lbl">下載備份（Excel）
-          <div class="sub">含卡片、進度、統計紀錄三個工作表，下次可原檔匯回</div>
+          <div class="sub">含卡片、進度、統計紀錄三個工作表</div>
         </div>
         <button class="btn primary" id="expXlsx">⬇️ 匯出</button>
       </div>
       <div class="setrow">
         <div class="lbl">上傳 Excel
-          <div class="sub">支援 .xlsx / .xls / .csv。備份檔會完整還原進度與統計</div>
+          <div class="sub">一次性匯入，不影響雲端同步</div>
         </div>
         <div style="display:flex;gap:8px;flex-wrap:wrap">
           <button class="btn ghost" id="tplBtn">下載範本</button>
-          <button class="btn primary" id="impBtn">⬆️ 選擇檔案</button>
+          <button class="btn ghost" id="impBtn">⬆️ 選擇檔案</button>
         </div>
       </div>
       <input type="file" id="fileInput" accept=".xlsx,.xls,.csv" style="display:none" />
@@ -1088,34 +1330,61 @@ function renderSettings(){
         <button class="btn ghost" id="resetProgress">重置進度</button>
       </div>
       <div class="setrow">
-        <div class="lbl">清空全部資料<div class="sub">刪除所有卡片、進度與統計</div></div>
+        <div class="lbl">清空全部資料<div class="sub">刪除所有卡片、進度與統計（雲端檔案不受影響）</div></div>
         <button class="btn ghost" id="clearAll" style="color:#dc2626;border-color:#dc2626">全部清空</button>
       </div>
     </div>
   `;
 
-  // 雲端
-  $('#saveCloud').onclick = () => {
-    const v = $('#cloudUrl').value.trim();
-    store.settings.cloudUrl = v;
-    save();
-    toast(v ? '已儲存，可立即同步' : '已清除雲端網址');
-    renderSettings();
-  };
-  $('#syncNow').onclick = () => syncFromCloud(false);
-  $('#autoSync').onchange = e => { store.settings.autoSync = e.target.checked; save(); };
+  /* --- 雲端按鈕 --- */
+  if (ready){
+    const syncBtn = $('#syncNow');
+    if (syncBtn) syncBtn.onclick = () => syncFromCloud(false);
+    $('#disconnectCloud').onclick = () => {
+      if (!confirm('確定中斷雲端連接嗎？\n本機進度仍保留，雲端檔案不受影響。')) return;
+      store.settings.cloudUrl = '';
+      store.settings.folderId = '';
+      cloudState.connected = false;
+      cloudState.error = '';
+      save();
+      render();
+      toast('已中斷雲端連接');
+    };
+    $('#autoSync').onchange = e => { store.settings.autoSync = e.target.checked; save(); };
+  } else {
+    const btn = $('#connectCloud');
+    if (btn) btn.onclick = async () => {
+      const url = $('#inputCloudUrl').value.trim();
+      const fid = $('#inputFolderId').value.trim();
+      if (!url || !fid){ toast('請填入網址與資料夾 ID'); return; }
+      if (!url.includes('script.google.com') && !url.includes('googleusercontent.com')){
+        if (!confirm('這看起來不是 Apps Script 網址，仍要繼續嗎？')) return;
+      }
+      store.settings.cloudUrl = url;
+      store.settings.folderId = fid;
+      save();
+      toast('<span class="spinner"></span>連接中…');
+      await syncFromCloud(true);
+      if (cloudState.connected){
+        toast('✅ 連接成功！');
+        render();
+      } else if (cloudState.error){
+        toast('❌ 連接失敗：' + cloudState.error);
+      }
+    };
+  }
 
-  // Excel
+  /* --- Excel --- */
   $('#expXlsx').onclick = exportExcel;
   $('#impBtn').onclick  = () => $('#fileInput').click();
   $('#fileInput').onchange = e => {
-    const f = e.target.files[0];
-    if (f) importExcel(f);
+    const file = e.target.files[0];
+    if (file) importExcel(file);
     e.target.value = '';
   };
   $('#tplBtn').onclick = downloadTemplate;
 
-  // 語音
+  /* --- 語音 --- */
   $('#setLang').onchange = e => { store.settings.lang = e.target.value; save(); };
   $('#setRate').oninput = e => {
     store.settings.rate = Number(e.target.value);
@@ -1125,94 +1394,20 @@ function renderSettings(){
   $('#setHint').onchange = e => { store.settings.showFrontInListen = e.target.checked; save(); };
   $('#testSpeak').onclick = () => speak('Hello, 你好');
 
-  // 危險
+  /* --- 危險 --- */
   $('#resetProgress').onclick = () => {
     if (!confirm('確定重置所有學習進度嗎？此動作無法復原。')) return;
     store.progress = {}; store.logs = [];
-    save(); render(); toast('進度已重置');
+    save(); scheduleUpload();
+    render(); toast('進度已重置');
   };
   $('#clearAll').onclick = () => {
-    if (!confirm('確定清空全部資料嗎？所有卡片與進度都會消失。')) return;
-    if (!confirm('再次確認：這無法復原！')) return;
+    if (!confirm('確定清空全部資料嗎？')) return;
+    if (!confirm('再次確認：這無法復原！（雲端卡片檔不會被刪）')) return;
     store = defaultStore();
-    save(); render(); toast('已清空');
-  };
-}
-
-/* =========================================================
-   11. 雲端同步（Google Sheets → 本機）
-   ========================================================= */
-async function syncFromCloud(silent){
-  const url = store.settings.cloudUrl;
-  if (!url){ if (!silent) toast('尚未設定雲端網址'); return; }
-
-  if (!silent) toast('☁️ 同步中…');
-  try {
-    const sep = url.includes('?') ? '&' : '?';
-    const res = await fetch(url + sep + '_=' + Date.now(), { cache:'no-store' });
-    if (!res.ok) throw new Error('HTTP ' + res.status);
-    const text = await res.text();
-
-    const wb = XLSX.read(text, { type:'string' });
-    const ws = wb.Sheets[wb.SheetNames[0]];
-    const rows = XLSX.utils.sheet_to_json(ws, { header:1, blankrows:false, defval:'' });
-    if (rows.length < 2) throw new Error('雲端沒有資料列');
-
-    const head = rows[0].map(x => String(x).trim());
-    const findIdx = (keys) => head.findIndex(h => {
-      const s = h.toLowerCase();
-      return keys.some(k => s.includes(k.toLowerCase()));
-    });
-    const idx = {
-      front: findIdx(FRONT_KEYS),
-      back:  findIdx(BACK_KEYS),
-      note:  findIdx(NOTE_KEYS),
-      deck:  head.findIndex(h => h.includes('牌組') || h.toLowerCase().includes('deck')),
-    };
-    if (idx.front < 0 || idx.back < 0)
-      throw new Error('雲端表格需包含「正面」「背面」欄位');
-
-    // 建索引
-    const byKey = new Map(store.cards.map(c => [c.front + '\u0001' + c.back, c]));
-    let added = 0, updated = 0, skipped = 0;
-    const cloudKeys = new Set();
-
-    for (let i = 1; i < rows.length; i++){
-      const r = rows[i] || [];
-      const front = String(r[idx.front] ?? '').trim();
-      const back  = String(r[idx.back]  ?? '').trim();
-      if (!front || !back){ skipped++; continue; }
-
-      const key = front + '\u0001' + back;
-      cloudKeys.add(key);
-      const note = idx.note >= 0 ? String(r[idx.note] ?? '').trim() : '';
-      const deck = idx.deck >= 0 ? (String(r[idx.deck] ?? '').trim() || '預設') : '預設';
-
-      const exist = byKey.get(key);
-      if (exist){
-        if (exist.note !== note || exist.deck !== deck){
-          exist.note = note; exist.deck = deck;
-          updated++;
-        }
-      } else {
-        const card = { id: uid(), front, back, note, deck, created: Date.now() };
-        store.cards.push(card);
-        byKey.set(key, card);
-        added++;
-      }
-    }
-
-    store.settings.lastSync = Date.now();
     save();
-    if (!session) render(); else updateHeader();
-
-    const msg = `☁️ 同步完成　新增 ${added} · 更新 ${updated}`;
-    if (!silent) toast(msg);
-    else if (added || updated) toast(msg);
-  } catch(e){
-    console.warn(e);
-    if (!silent) toast('❌ 同步失敗：' + e.message);
-  }
+    render(); toast('已清空');
+  };
 }
 
 /* =========================================================
@@ -1331,7 +1526,7 @@ function importExcel(file){
           if (hasF && hasB){ cardSheetName = name; break; }
         }
       }
-      if (!cardSheetName){ alert('找不到可辨識的卡片工作表（需包含「正面」「背面」欄位）'); return; }
+      if (!cardSheetName){ alert('找不到可辨識的卡片工作表'); return; }
 
       const rows = XLSX.utils.sheet_to_json(wb.Sheets[cardSheetName], { header:1, blankrows:false, defval:'' });
       if (rows.length < 2){ alert('工作表沒有資料列'); return; }
@@ -1356,18 +1551,15 @@ function importExcel(file){
         last:     head.findIndex(h => h.includes('最後') || h.toLowerCase().includes('last')),
       };
 
-      if (idx.front < 0 || idx.back < 0){
-        alert('工作表需包含「正面」與「背面」欄位');
-        return;
-      }
+      if (idx.front < 0 || idx.back < 0){ alert('工作表需包含「正面」與「背面」欄位'); return; }
 
       const isBackup = idx.level >= 0;
 
       let merge = false;
       if (store.cards.length){
         const msg = isBackup
-          ? `偵測到完整備份（含進度）。\n\n目前已有 ${store.cards.length} 張卡片。\n\n按「確定」＝合併（依 id / 內容比對）\n按「取消」＝覆蓋（清空後匯入）`
-          : `目前已有 ${store.cards.length} 張卡片。\n\n按「確定」＝合併（略過重複）\n按「取消」＝覆蓋（清空後匯入）`;
+          ? `偵測到完整備份（含進度）。\n\n目前已有 ${store.cards.length} 張卡片。\n\n按「確定」＝合併\n按「取消」＝覆蓋`
+          : `目前已有 ${store.cards.length} 張卡片。\n\n按「確定」＝合併\n按「取消」＝覆蓋`;
         merge = confirm(msg);
       }
 
@@ -1464,6 +1656,7 @@ function importExcel(file){
       }
 
       save();
+      scheduleUpload();
       session = null;
       render();
 
@@ -1503,13 +1696,18 @@ document.addEventListener('keydown', e => {
   else if (['1','2','3','4','5'].includes(e.key)){ e.preventDefault(); doGrade(Number(e.key)); }
 });
 
-// 啟動
-render();
+window.addEventListener('beforeunload', flushUpload);
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'hidden') flushUpload();
+});
 
-// 背景自動同步
-if (store.settings.cloudUrl && store.settings.autoSync){
-  syncFromCloud(true);
-}
+/* 啟動 */
+(async () => {
+  render();
+  if (cloudReady() && store.settings.autoSync){
+    await syncFromCloud(true);
+  }
+})();
 </script>
 </body>
 </html>
