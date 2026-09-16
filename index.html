@@ -178,6 +178,8 @@
   .spinner{display:inline-block;width:12px;height:12px;border:2px solid currentColor;border-top-color:transparent;
     border-radius:50%;animation:rot .8s linear infinite;vertical-align:middle;margin-right:4px}
   @keyframes rot{to{transform:rotate(360deg)}}
+  .hintBox{background:var(--pri-soft);border-radius:10px;padding:12px 14px;font-size:13px;
+    line-height:1.7;margin-top:10px;color:var(--text)}
   @media (max-width: 720px){ .two{grid-template-columns:1fr} }
   @media (max-width: 560px){
     .app{padding:12px 10px 80px}
@@ -310,6 +312,36 @@ function base64ToBytes(b64){
   const bytes = new Uint8Array(bin.length);
   for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
   return bytes;
+}
+
+/* 從各種 Google Drive 網址格式萃取資料夾 ID */
+function extractFolderId(input){
+  const s = String(input || '').trim();
+  if (!s) return '';
+
+  // 已經是純 ID（Drive ID 通常 25～50 字，含 - _ 英數）
+  if (/^[A-Za-z0-9_-]{20,}$/.test(s) && !s.includes('/') && !s.includes('.')) return s;
+
+  // /folders/XXXX
+  let m = s.match(/\/folders\/([A-Za-z0-9_-]+)/);
+  if (m) return m[1];
+
+  // ?id=XXXX 或 &id=XXXX
+  m = s.match(/[?&]id=([A-Za-z0-9_-]+)/);
+  if (m) return m[1];
+
+  // drive.google.com/open?id=XXXX
+  m = s.match(/open\?id=([A-Za-z0-9_-]+)/);
+  if (m) return m[1];
+
+  // d/XXXX（檔案分享連結用）
+  m = s.match(/\/d\/([A-Za-z0-9_-]+)/);
+  if (m) return m[1];
+
+  // 最後防線：整串看起來像 ID
+  if (/^[A-Za-z0-9_-]{20,}$/.test(s)) return s;
+
+  return '';
 }
 
 /* =========================================================
@@ -1245,15 +1277,18 @@ function renderSettings(){
                value="${esc(store.settings.cloudUrl)}" />
 
         <div class="setrow">
-          <div class="lbl">Google Drive 資料夾 ID
-            <div class="sub">從資料夾網址 <code>/folders/</code> 後面複製那串</div>
+          <div class="lbl">Google Drive 資料夾 ID 或網址
+            <div class="sub">貼整條網址或純 ID 都可以，程式會自動萃取</div>
           </div>
         </div>
         <input id="inputFolderId" class="input" style="width:100%;margin-bottom:12px"
-               placeholder="1AbC…XyZ"
+               placeholder="1AbC…XyZ　或　https://drive.google.com/drive/folders/1AbC…XyZ"
                value="${esc(store.settings.folderId)}" />
 
         <button class="btn primary" id="connectCloud" style="width:100%;max-width:340px">🔗 連接並同步</button>
+
+        <div id="connectError" style="display:none;margin-top:12px;padding:12px 14px;
+             background:#fee2e2;color:#991b1b;border-radius:10px;font-size:13px;line-height:1.6"></div>
 
         <details>
           <summary>📖 如何設定？（首次使用必看）</summary>
@@ -1261,8 +1296,7 @@ function renderSettings(){
             <li>在 Google Drive 建立一個資料夾，把 <code>.xlsx</code> / <code>.csv</code> 卡片放進去<br>
               <span class="muted" style="font-size:12px">每個檔案 = 一個牌組，第一列需有「正面」「背面」欄位</span>
             </li>
-            <li>從資料夾網址複製 ID<br>
-              <code>drive.google.com/drive/folders/<b>1AbC...XyZ</b></code>
+            <li>複製資料夾網址（整條貼進來也可以，程式會自動抓 ID）
             </li>
             <li>前往 <a href="https://script.google.com" target="_blank" style="color:var(--pri)">script.google.com</a> → 新增專案</li>
             <li>貼上後端程式碼（見說明），然後 <b>部署 → 新增部署 → 網頁應用程式</b><br>
@@ -1355,21 +1389,49 @@ function renderSettings(){
     const btn = $('#connectCloud');
     if (btn) btn.onclick = async () => {
       const url = $('#inputCloudUrl').value.trim();
-      const fid = $('#inputFolderId').value.trim();
-      if (!url || !fid){ toast('請填入網址與資料夾 ID'); return; }
+      const rawId = $('#inputFolderId').value.trim();
+      const errBox = $('#connectError');
+      errBox.style.display = 'none';
+
+      if (!url){ 
+        errBox.textContent = '請填入 Web App 網址';
+        errBox.style.display = 'block';
+        return;
+      }
+      if (!rawId){
+        errBox.textContent = '請填入資料夾 ID 或網址';
+        errBox.style.display = 'block';
+        return;
+      }
+
+      const fid = extractFolderId(rawId);
+      if (!fid){
+        errBox.textContent = '❌ 無法辨識資料夾 ID。請確認貼上的是資料夾網址（含 /folders/），或直接貼純 ID。';
+        errBox.style.display = 'block';
+        return;
+      }
+
       if (!url.includes('script.google.com') && !url.includes('googleusercontent.com')){
         if (!confirm('這看起來不是 Apps Script 網址，仍要繼續嗎？')) return;
       }
+
       store.settings.cloudUrl = url;
       store.settings.folderId = fid;
       save();
+
       toast('<span class="spinner"></span>連接中…');
       await syncFromCloud(true);
+
       if (cloudState.connected){
         toast('✅ 連接成功！');
         render();
-      } else if (cloudState.error){
-        toast('❌ 連接失敗：' + cloudState.error);
+      } else {
+        errBox.innerHTML = `❌ 連接失敗：${esc(cloudState.error || '未知錯誤')}<br>
+          <span style="font-size:12px;color:#7f1d1d">
+          請檢查：① Web App 網址結尾為 <code>/exec</code>　② 部署權限為「任何人」<br>
+          ③ 資料夾已放 .xlsx / .csv　④ 資料夾 ID 正確：<code>${esc(fid)}</code>
+          </span>`;
+        errBox.style.display = 'block';
       }
     };
   }
