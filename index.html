@@ -181,11 +181,8 @@
   @keyframes rot{to{transform:rotate(360deg)}}
   .hintBox{background:var(--pri-soft);border-radius:10px;padding:12px 14px;font-size:13px;
     line-height:1.7;margin-top:10px;color:var(--text)}
-  /* 統計頁新元素 */
   .statFilters{display:flex;gap:9px;flex-wrap:wrap;margin-bottom:12px;align-items:center}
   .statFilters select{min-width:140px}
-  .rowBadge{display:inline-block;padding:2px 8px;border-radius:6px;font-size:11px;font-weight:700}
-  .deckRowActions{display:flex;gap:5px}
   .miniBtn{border:1px solid var(--line);background:var(--panel);border-radius:7px;
     padding:4px 9px;font-size:11px;font-weight:700;cursor:pointer;font-family:inherit;
     color:var(--text);white-space:nowrap;transition:.15s}
@@ -194,7 +191,6 @@
   .miniBtn.danger:hover{background:#dc2626;color:#fff;border-color:#dc2626}
   .table-num{text-align:right;font-variant-numeric:tabular-nums}
   .table-center{text-align:center}
-  .chipRow{display:flex;gap:6px;flex-wrap:wrap}
   .chip{font-size:11px;font-weight:700;padding:3px 9px;border-radius:999px;background:var(--bg);color:var(--muted)}
   .chip.g{background:#dcfce7;color:#166534}
   .chip.y{background:#fef9c3;color:#854d0e}
@@ -208,6 +204,59 @@
     .chip.r{background:#7f1d1d33;color:#fca5a5}
     .chip.b{background:#1e3a8a33;color:#93c5fd}
   }
+
+  /* ===== 牌組卡片 ===== */
+  .deckToolbar{display:flex;gap:9px;flex-wrap:wrap;align-items:center;margin-bottom:12px}
+  .deckGrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:12px}
+  .deckCard{
+    background:var(--bg);border:1px solid var(--line);border-radius:14px;padding:14px;
+    display:flex;flex-direction:column;gap:11px;transition:.15s;position:relative;
+  }
+  .deckCard:hover{border-color:var(--pri)}
+  .deckCard.priority{
+    border-color:#fca5a5;
+    background:linear-gradient(180deg,#fef2f2,var(--bg));
+  }
+  .deckCard.priority:hover{border-color:#dc2626}
+  @media (prefers-color-scheme: dark){
+    .deckCard.priority{border-color:#7f1d1d;background:linear-gradient(180deg,#7f1d1d1a,var(--bg))}
+  }
+  .deckHead{display:flex;justify-content:space-between;align-items:flex-start;gap:8px}
+  .deckName{font-size:15px;font-weight:800;line-height:1.3;word-break:break-word;flex:1;min-width:0}
+  .deckTag{font-size:11px;font-weight:800;padding:3px 9px;border-radius:999px;white-space:nowrap;flex-shrink:0}
+  .deckTag.t5{background:#dcfce7;color:#166534}
+  .deckTag.t4{background:#dbeafe;color:#1e40af}
+  .deckTag.t3{background:#fef9c3;color:#854d0e}
+  .deckTag.t2{background:#ffedd5;color:#9a3412}
+  .deckTag.t1{background:#fee2e2;color:#991b1b}
+  @media (prefers-color-scheme: dark){
+    .deckTag.t5{background:#14532d33;color:#86efac}
+    .deckTag.t4{background:#1e3a8a33;color:#93c5fd}
+    .deckTag.t3{background:#713f1233;color:#fde047}
+    .deckTag.t2{background:#7c2d1233;color:#fdba74}
+    .deckTag.t1{background:#7f1d1d33;color:#fca5a5}
+  }
+  .deckMasteryRow{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap}
+  .deckMasteryNum{font-size:34px;font-weight:900;line-height:1;color:var(--pri);font-variant-numeric:tabular-nums;letter-spacing:-1px}
+  .deckMasteryNum small{font-size:15px;font-weight:700;opacity:.7;letter-spacing:0}
+  .deckMasteryLabel{font-size:12px;color:var(--muted);font-weight:700}
+  .deckSolid{font-size:12px;color:var(--muted);margin-left:auto;font-weight:700}
+  .deckSolid b{color:var(--text)}
+  .deckProgress{height:9px;background:var(--line);border-radius:999px;overflow:hidden;position:relative}
+  .deckProgressFill{height:100%;border-radius:999px;transition:width .5s;background:linear-gradient(90deg,#4f46e5,#8b5cf6)}
+  .deckProgressFill.hi{background:linear-gradient(90deg,#16a34a,#4ade80)}
+  .deckProgressFill.md{background:linear-gradient(90deg,#ca8a04,#facc15)}
+  .deckProgressFill.lo{background:linear-gradient(90deg,#dc2626,#f87171)}
+  .deckLvBar{display:flex;height:12px;border-radius:6px;overflow:hidden;background:var(--line)}
+  .deckLvSeg{transition:width .5s;min-width:0}
+  .deckLvLegend{display:flex;gap:9px;flex-wrap:wrap;font-size:10px;color:var(--muted)}
+  .deckLvLegend span{display:inline-flex;align-items:center;gap:3px;white-space:nowrap}
+  .deckLvDot{width:7px;height:7px;border-radius:2px;display:inline-block;flex-shrink:0}
+  .deckStats{display:flex;gap:10px;flex-wrap:wrap;font-size:12px;color:var(--muted)}
+  .deckStats b{color:var(--text);font-weight:800}
+  .deckActions{display:flex;gap:6px;flex-wrap:wrap;margin-top:2px;padding-top:10px;border-top:1px solid var(--line)}
+  .deckEmpty{text-align:center;padding:30px 20px;color:var(--muted);font-size:13px}
+
   @media (max-width: 720px){ .two{grid-template-columns:1fr} }
   @media (max-width: 560px){
     .app{padding:12px 10px 80px}
@@ -242,6 +291,9 @@
     .cmp > div{padding:8px 4px}
     .modeSwitch button{padding:7px 13px;font-size:12px}
     .statFilters select{width:100%}
+    .deckGrid{grid-template-columns:1fr}
+    .deckMasteryNum{font-size:30px}
+    .deckToolbar .input{width:100%}
   }
   @media (max-width: 360px){
     .grade{flex:1 1 calc(50% - 6px)}
@@ -281,6 +333,7 @@ const LEVELS = [
   { lv:5, name:'精熟',     color:'#2563eb', days:10 },
 ];
 const LV_MAP = Object.fromEntries(LEVELS.map(l => [l.lv, l]));
+const UNLEARNED_COLOR = '#94a3b8';
 
 const MODE_META = {
   visual: { name:'視覺', color:'var(--visual)', icon:'🔄' },
@@ -359,7 +412,6 @@ function base64ToBytes(b64){
   for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
   return bytes;
 }
-
 function extractFolderId(input){
   const s = String(input || '').trim();
   if (!s) return '';
@@ -369,12 +421,9 @@ function extractFolderId(input){
   if (m) return m[1];
   m = s.match(/\/d\/([A-Za-z0-9_-]{10,})/);
   if (m) return m[1];
-  if (/^[A-Za-z0-9_-]{20,}$/.test(s) && !s.includes('/') && !s.includes('.') && !s.includes(':')) {
-    return s;
-  }
+  if (/^[A-Za-z0-9_-]{20,}$/.test(s) && !s.includes('/') && !s.includes('.') && !s.includes(':')) return s;
   return '';
 }
-
 function getCleanFolderId(){
   const cleaned = extractFolderId(store.settings.folderId);
   if (cleaned && cleaned !== store.settings.folderId){
@@ -691,11 +740,11 @@ function buildQueue(opts){
 let currentTab = 'browse';
 let session = null;
 let statsMode = 'all';
-// 個別字卡統計的篩選狀態
 let cardStatsDeck = 'all';
 let cardStatsLevel = 'all';
 let cardStatsSort = 'due';
 let cardStatsLimit = 200;
+let deckSort = 'priority'; // priority | mastery | count | name
 
 function updateHeader(){
   const total  = store.cards.length;
@@ -1059,8 +1108,6 @@ function calcStats(logs){
     todayAcc: tLogs.length ? Math.round(tOk / tLogs.length * 100) : 0,
   };
 }
-
-/* 依卡片建立 log 索引：Map<cardId, {total, ok, vTotal, vOk, lTotal, lOk}> */
 function buildLogIndex(){
   const map = new Map();
   store.logs.forEach(l => {
@@ -1071,15 +1118,56 @@ function buildLogIndex(){
     }
     s.total++;
     if (l.lv >= 3) s.ok++;
-    if (l.mode === 'visual'){
-      s.vTotal++;
-      if (l.lv >= 3) s.vOk++;
-    } else if (l.mode === 'listen'){
-      s.lTotal++;
-      if (l.lv >= 3) s.lOk++;
-    }
+    if (l.mode === 'visual'){ s.vTotal++; if (l.lv >= 3) s.vOk++; }
+    else if (l.mode === 'listen'){ s.lTotal++; if (l.lv >= 3) s.lOk++; }
   });
   return map;
+}
+
+/* 依牌組彙總：精熟率等 */
+function buildDeckDetail(){
+  const map = {};
+  store.cards.forEach(c => {
+    const d = c.deck || '預設';
+    if (!map[d]) map[d] = {
+      name: d, total: 0, learned: 0,
+      lv: {0:0, 1:0, 2:0, 3:0, 4:0, 5:0},
+      reps: 0, due: 0,
+    };
+    const s = map[d];
+    s.total++;
+    const lv = getLevel(c.id);
+    s.lv[lv]++;
+    if (lv > 0) s.learned++;
+    const p = store.progress[c.id];
+    if (p){
+      s.reps += p.reps || 0;
+      if (p.due && p.due <= Date.now()) s.due++;
+    } else {
+      s.due++;
+    }
+  });
+
+  return Object.values(map).map(s => {
+    const mastered = s.lv[5];
+    const solid    = s.lv[5] + s.lv[4];
+    const masteryRate = s.total ? mastered / s.total : 0;
+    const solidRate   = s.total ? solid / s.total : 0;
+    const learnedRate = s.total ? s.learned / s.total : 0;
+    const avgReps     = s.total ? (s.reps / s.total) : 0;
+
+    let tag, tagCls, priority;
+    if (masteryRate >= 0.8){ tag = '已掌握'; tagCls = 't5'; priority = 5; }
+    else if (masteryRate >= 0.5){ tag = '不錯'; tagCls = 't4'; priority = 4; }
+    else if (masteryRate >= 0.25){ tag = '加強中'; tagCls = 't3'; priority = 3; }
+    else if (masteryRate > 0){ tag = '需練'; tagCls = 't2'; priority = 2; }
+    else { tag = '優先練'; tagCls = 't1'; priority = 1; }
+
+    return Object.assign({}, s, {
+      mastered, solid, masteryRate, solidRate, learnedRate, avgReps,
+      tag, tagCls, priority,
+    });
+  });
 }
 
 function renderStats(){
@@ -1090,7 +1178,8 @@ function renderStats(){
   const counts = { 0:0, 1:0, 2:0, 3:0, 4:0, 5:0 };
   store.cards.forEach(c => { counts[getLevel(c.id)]++; });
 
-  const masteryRate = total ? Math.round((counts[5] + counts[4]) / total * 100) : 0;
+  const masteryRateAll = total ? Math.round(counts[5] / total * 100) : 0;
+  const solidRateAll   = total ? Math.round((counts[5] + counts[4]) / total * 100) : 0;
 
   const modeLogs = logsByMode(statsMode);
   const S = calcStats(modeLogs);
@@ -1131,19 +1220,14 @@ function renderStats(){
 
   const modeLabel = statsMode === 'all' ? '全部模式' : `${MODE_META[statsMode].icon} ${MODE_META[statsMode].name}`;
 
-  /* --- 牌組詳細統計 --- */
-  const deckDetail = {};
-  store.cards.forEach(c => {
-    const d = c.deck || '預設';
-    if (!deckDetail[d]) deckDetail[d] = { total:0, lv:{0:0,1:0,2:0,3:0,4:0,5:0}, reps:0 };
-    deckDetail[d].total++;
-    deckDetail[d].lv[getLevel(c.id)]++;
-    const p = store.progress[c.id];
-    if (p) deckDetail[d].reps += p.reps || 0;
-  });
-  const deckNames = Object.keys(deckDetail);
+  /* --- 牌組 --- */
+  let deckList = buildDeckDetail();
+  if (deckSort === 'priority')   deckList.sort((a, b) => a.masteryRate - b.masteryRate || b.total - a.total);
+  else if (deckSort === 'mastery') deckList.sort((a, b) => b.masteryRate - a.masteryRate || b.total - a.total);
+  else if (deckSort === 'count')   deckList.sort((a, b) => b.total - a.total);
+  else if (deckSort === 'name')    deckList.sort((a, b) => a.name.localeCompare(b.name, 'zh-Hant'));
 
-  /* --- 個別字卡統計 --- */
+  /* --- 個別字卡 --- */
   const logIndex = buildLogIndex();
 
   $('#view').innerHTML = `
@@ -1157,9 +1241,42 @@ function renderStats(){
       <div class="kpi"><div class="kpi-v">${total}</div><div class="kpi-l">總卡片</div></div>
       <div class="kpi"><div class="kpi-v">${learned}</div><div class="kpi-l">已學習</div></div>
       <div class="kpi"><div class="kpi-v">${due}</div><div class="kpi-l">待複習</div></div>
-      <div class="kpi"><div class="kpi-v">${S.today}</div><div class="kpi-l">今日複習</div></div>
+      <div class="kpi"><div class="kpi-v">${masteryRateAll}%</div><div class="kpi-l">精熟率</div></div>
+      <div class="kpi"><div class="kpi-v">${solidRateAll}%</div><div class="kpi-l">熟+精熟率</div></div>
       <div class="kpi"><div class="kpi-v">${S.todayAcc}%</div><div class="kpi-l">今日記得率</div></div>
-      <div class="kpi"><div class="kpi-v">${masteryRate}%</div><div class="kpi-l">精熟+熟 佔比</div></div>
+    </div>
+
+    <!-- ===== 牌組卡片 ===== -->
+    <div class="panel" style="margin-bottom:13px">
+      <h3>🗂 牌組精熟度（每個 Excel）</h3>
+      <div class="deckToolbar">
+        <select id="deckSortSel" class="input">
+          <option value="priority" ${deckSort==='priority'?'selected':''}>🔥 依需要練習排序</option>
+          <option value="mastery"  ${deckSort==='mastery' ?'selected':''}>🏆 依精熟率高→低</option>
+          <option value="count"    ${deckSort==='count'   ?'selected':''}>📦 依張數多→少</option>
+          <option value="name"     ${deckSort==='name'    ?'selected':''}>🔤 依名稱</option>
+        </select>
+        <span class="muted" style="font-size:12px">
+          共 ${deckList.length} 個牌組
+        </span>
+      </div>
+      ${deckList.length ? `
+        <div class="deckGrid" id="deckGrid"></div>
+      ` : '<div class="deckEmpty">尚無牌組資料</div>'}
+    </div>
+
+    <div class="panel" style="margin-bottom:13px">
+      <h3>📊 等級分布（全部卡片）</h3>
+      ${[5,4,3,2,1,0].map(lv => {
+        const L = lv ? LV_MAP[lv] : { name:'未學習', color: UNLEARNED_COLOR };
+        const n = counts[lv];
+        const pct = total ? (n / total * 100) : 0;
+        return `<div class="lvrow">
+          <div class="lvname" style="color:${L.color}">${L.name}</div>
+          <div class="lvbar"><div class="lvfill" style="width:${pct.toFixed(1)}%;background:${L.color}"></div></div>
+          <div class="lvnum">${n} 張 · ${pct.toFixed(0)}%</div>
+        </div>`;
+      }).join('')}
     </div>
 
     <div class="panel" style="margin-bottom:13px">
@@ -1181,20 +1298,6 @@ function renderStats(){
         <div class="v visual last">${cmpV.today ? cmpV.todayAcc + '%' : '—'}</div>
         <div class="v listen last">${cmpL.today ? cmpL.todayAcc + '%' : '—'}</div>
       </div>
-    </div>
-
-    <div class="panel" style="margin-bottom:13px">
-      <h3>📊 等級分布（卡片）</h3>
-      ${[5,4,3,2,1,0].map(lv => {
-        const L = lv ? LV_MAP[lv] : { name:'未學習', color:'#94a3b8' };
-        const n = counts[lv];
-        const pct = total ? (n / total * 100) : 0;
-        return `<div class="lvrow">
-          <div class="lvname" style="color:${L.color}">${L.name}</div>
-          <div class="lvbar"><div class="lvfill" style="width:${pct.toFixed(1)}%;background:${L.color}"></div></div>
-          <div class="lvnum">${n} 張 · ${pct.toFixed(0)}%</div>
-        </div>`;
-      }).join('')}
     </div>
 
     <div class="two" style="margin-bottom:13px">
@@ -1241,51 +1344,6 @@ function renderStats(){
       </div>
     </div>
 
-    <!-- ===== 牌組詳細統計 ===== -->
-    <div class="panel" style="margin-bottom:13px">
-      <h3>🗂 牌組詳細統計（每個 Excel）</h3>
-      ${deckNames.length ? `
-      <div class="tableWrap">
-        <table>
-          <thead>
-            <tr>
-              <th style="padding:8px 6px">牌組</th>
-              <th style="padding:8px 6px" class="table-num">總數</th>
-              <th style="padding:8px 6px" class="table-center">未學</th>
-              ${[1,2,3,4,5].map(n => `<th style="padding:8px 6px" class="table-center" title="${LV_MAP[n].name}">${LV_MAP[n].name}</th>`).join('')}
-              <th style="padding:8px 6px" class="table-num">平均複習</th>
-              <th style="padding:8px 6px" class="table-center">操作</th>
-            </tr>
-          </thead>
-          <tbody>
-            ${deckNames.map(d => {
-              const v = deckDetail[d];
-              const avg = v.total ? (v.reps / v.total).toFixed(1) : '0.0';
-              return `<tr style="border-top:1px solid var(--line)">
-                <td style="padding:9px 6px;font-weight:700;max-width:180px;word-break:break-word">${esc(d)}</td>
-                <td style="padding:9px 6px" class="table-num">${v.total}</td>
-                <td style="padding:9px 6px" class="table-center">${v.lv[0]}</td>
-                ${[1,2,3,4,5].map(n => {
-                  const L = LV_MAP[n];
-                  const c = v.lv[n];
-                  return `<td style="padding:9px 6px" class="table-center">
-                    ${c ? `<span style="color:${L.color};font-weight:700">${c}</span>` : '<span class="muted">·</span>'}
-                  </td>`;
-                }).join('')}
-                <td style="padding:9px 6px" class="table-num">${avg}</td>
-                <td style="padding:9px 6px" class="table-center">
-                  <div class="deckRowActions">
-                    <button class="miniBtn" data-deck-progress="${esc(d)}" title="只清學習進度">↺ 清進度</button>
-                    <button class="miniBtn danger" data-deck-clear="${esc(d)}" title="移除卡片與進度">🗑 刪除</button>
-                  </div>
-                </td>
-              </tr>`;
-            }).join('')}
-          </tbody>
-        </table>
-      </div>` : '<p class="muted" style="font-size:13px">尚無資料</p>'}
-    </div>
-
     <!-- ===== 個別字卡統計 ===== -->
     <div class="panel" style="margin-bottom:13px">
       <h3>🃏 個別字卡統計</h3>
@@ -1293,7 +1351,7 @@ function renderStats(){
       <div class="statFilters">
         <select id="csDeck" class="input">
           <option value="all">全部牌組</option>
-          ${deckNames.map(d => `<option value="${esc(d)}" ${cardStatsDeck===d?'selected':''}>${esc(d)}</option>`).join('')}
+          ${deckList.map(d => `<option value="${esc(d.name)}" ${cardStatsDeck===d.name?'selected':''}>${esc(d.name)}</option>`).join('')}
         </select>
         <select id="csLevel" class="input">
           <option value="all">全部等級</option>
@@ -1313,6 +1371,7 @@ function renderStats(){
     </div>
   `;
 
+  /* 模式切換 */
   $('#modeSwitch').onclick = e => {
     const b = e.target.closest('button[data-m]');
     if (!b) return;
@@ -1320,16 +1379,86 @@ function renderStats(){
     renderStats();
   };
 
-  // 牌組操作
-  const view = $('#view');
-  view.querySelectorAll('[data-deck-progress]').forEach(btn => {
-    btn.onclick = () => clearDeckProgress(btn.dataset.deckProgress);
-  });
-  view.querySelectorAll('[data-deck-clear]').forEach(btn => {
-    btn.onclick = () => clearDeckFull(btn.dataset.deckClear);
-  });
+  /* 渲染牌組卡片 */
+  if (deckList.length){
+    const grid = $('#deckGrid');
+    grid.innerHTML = deckList.map(d => {
+      const masteryPct = (d.masteryRate * 100).toFixed(0);
+      const solidPct   = (d.solidRate * 100).toFixed(0);
+      const learnedPct = (d.learnedRate * 100).toFixed(0);
+      const isPriority = d.priority <= 2;
 
-  // 個別字卡統計
+      // 進度條顏色
+      let fillCls = '';
+      if (d.masteryRate >= 0.5) fillCls = 'hi';
+      else if (d.masteryRate >= 0.25) fillCls = 'md';
+      else if (d.masteryRate > 0) fillCls = 'lo';
+
+      // 等級條各段寬度
+      const segs = [];
+      [0,1,2,3,4,5].forEach(lv => {
+        const n = d.lv[lv];
+        if (!n) return;
+        const pct = n / d.total * 100;
+        const color = lv === 0 ? UNLEARNED_COLOR : LV_MAP[lv].color;
+        segs.push(`<div class="deckLvSeg" style="width:${pct.toFixed(2)}%;background:${color}" title="${lv === 0 ? '未學習' : LV_MAP[lv].name}：${n} 張"></div>`);
+      });
+
+      return `
+        <div class="deckCard ${isPriority ? 'priority' : ''}" data-deck="${esc(d.name)}">
+          <div class="deckHead">
+            <div class="deckName">${esc(d.name)}</div>
+            <span class="deckTag ${d.tagCls}">${d.tag}</span>
+          </div>
+
+          <div class="deckMasteryRow">
+            <div class="deckMasteryNum">${masteryPct}<small>%</small></div>
+            <div class="deckMasteryLabel">精熟率</div>
+            <div class="deckSolid">熟+精熟 <b>${solidPct}%</b></div>
+          </div>
+
+          <div class="deckProgress">
+            <div class="deckProgressFill ${fillCls}" style="width:${masteryPct}%"></div>
+          </div>
+
+          <div class="deckLvBar">${segs.join('')}</div>
+          <div class="deckLvLegend">
+            <span><span class="deckLvDot" style="background:${UNLEARNED_COLOR}"></span>未學 ${d.lv[0]}</span>
+            ${[1,2,3,4,5].map(n => {
+              const L = LV_MAP[n];
+              const c = d.lv[n];
+              return c ? `<span><span class="deckLvDot" style="background:${L.color}"></span>${L.name} ${c}</span>` : '';
+            }).join('')}
+          </div>
+
+          <div class="deckStats">
+            <span>📦 <b>${d.total}</b> 張</span>
+            <span>✅ 已學 <b>${learnedPct}%</b></span>
+            <span>⏰ 待複習 <b>${d.due}</b></span>
+            <span>🔁 平均 <b>${d.avgReps.toFixed(1)}</b> 次</span>
+          </div>
+
+          <div class="deckActions">
+            <button class="miniBtn" data-deck-progress="${esc(d.name)}">↺ 清進度</button>
+            <button class="miniBtn danger" data-deck-clear="${esc(d.name)}">🗑 刪除牌組</button>
+          </div>
+        </div>
+      `;
+    }).join('');
+
+    grid.querySelectorAll('[data-deck-progress]').forEach(btn => {
+      btn.onclick = () => clearDeckProgress(btn.dataset.deckProgress);
+    });
+    grid.querySelectorAll('[data-deck-clear]').forEach(btn => {
+      btn.onclick = () => clearDeckFull(btn.dataset.deckClear);
+    });
+  }
+
+  /* 牌組排序切換 */
+  const sortSel = $('#deckSortSel');
+  if (sortSel) sortSel.onchange = e => { deckSort = e.target.value; renderStats(); };
+
+  /* 個別字卡 */
   if (total){
     cardStatsLimit = 200;
 
@@ -1353,10 +1482,7 @@ function renderStats(){
           const da = pa ? pa.due : 0, db = pb ? pb.due : 0;
           return da - db;
         }
-        if (cardStatsSort === 'reps'){
-          const ra = pa ? pa.reps : 0, rb = pb ? pb.reps : 0;
-          return rb - ra;
-        }
+        if (cardStatsSort === 'reps') return (pb ? pb.reps : 0) - (pa ? pa.reps : 0);
         if (cardStatsSort === 'wrong'){
           const wa = sa.total ? (sa.total - sa.ok) / sa.total : 0;
           const wb = sb.total ? (sb.total - sb.ok) / sb.total : 0;
@@ -1372,9 +1498,8 @@ function renderStats(){
           const lb = getLevel(b.id) || 99;
           return la - lb;
         }
-        if (cardStatsSort === 'front'){
+        if (cardStatsSort === 'front')
           return String(a.front).localeCompare(String(b.front), 'zh-Hant');
-        }
         return 0;
       });
 
@@ -1389,7 +1514,7 @@ function renderStats(){
       wrap.innerHTML = `
         <div class="muted" style="font-size:12px;margin-bottom:8px">
           顯示 ${show.length} / ${totalShown} 張
-          ${totalShown > show.length ? `（還有 ${totalShown - show.length} 張，請縮小篩選或按下方按鈕）` : ''}
+          ${totalShown > show.length ? `（還有 ${totalShown - show.length} 張）` : ''}
         </div>
         <div class="tableWrap">
           <table>
@@ -1425,10 +1550,10 @@ function renderStats(){
                   </td>
                   <td style="padding:9px 6px" class="table-num">${s.total || 0}</td>
                   <td style="padding:9px 6px" class="table-num">${acc !== null ? acc + '%' : '<span class="muted">—</span>'}</td>
-                  <td style="padding:9px 6px" class="table-center" title="視覺 ${s.vOk}/${s.vTotal}">${vAcc !== null ? vAcc + '%' : '<span class="muted">—</span>'}</td>
-                  <td style="padding:9px 6px" class="table-center" title="聽力 ${s.lOk}/${s.lTotal}">${lAcc !== null ? lAcc + '%' : '<span class="muted">—</span>'}</td>
-                  <td style="padding:9px 6px" class="table-center;font-size:12px" style="font-size:12px">
-                    ${p.due ? `<span class="${p.due <= Date.now() ? '' : 'muted'}" style="${p.due <= Date.now() ? 'color:#dc2626;font-weight:700' : ''}">${relativeDate(p.due)}</span>` : '<span class="muted">—</span>'}
+                  <td style="padding:9px 6px" class="table-center">${vAcc !== null ? vAcc + '%' : '<span class="muted">—</span>'}</td>
+                  <td style="padding:9px 6px" class="table-center">${lAcc !== null ? lAcc + '%' : '<span class="muted">—</span>'}</td>
+                  <td style="padding:9px 6px;font-size:12px" class="table-center">
+                    ${p.due ? `<span style="${p.due <= Date.now() ? 'color:#dc2626;font-weight:700' : 'color:var(--muted)'}">${relativeDate(p.due)}</span>` : '<span class="muted">—</span>'}
                   </td>
                 </tr>`;
               }).join('')}
@@ -1442,15 +1567,12 @@ function renderStats(){
       `;
 
       const moreBtn = $('#csMoreBtn');
-      if (moreBtn) moreBtn.onclick = () => {
-        cardStatsLimit += 200;
-        renderCsResult();
-      };
+      if (moreBtn) moreBtn.onclick = () => { cardStatsLimit += 200; renderCsResult(); };
     };
 
-    $('#csDeck').onchange = e => { cardStatsDeck = e.target.value; cardStatsLimit = 200; renderCsResult(); };
+    $('#csDeck').onchange  = e => { cardStatsDeck = e.target.value; cardStatsLimit = 200; renderCsResult(); };
     $('#csLevel').onchange = e => { cardStatsLevel = e.target.value; cardStatsLimit = 200; renderCsResult(); };
-    $('#csSort').onchange = e => { cardStatsSort = e.target.value; renderCsResult(); };
+    $('#csSort').onchange  = e => { cardStatsSort = e.target.value; renderCsResult(); };
     renderCsResult();
   }
 }
@@ -1468,7 +1590,7 @@ function clearDeckProgress(deckName){
   render(); toast(`已清空「${deckName}」的進度`);
 }
 
-/* ---------- 刪除整份牌組（卡片 + 進度） ---------- */
+/* ---------- 刪除整份牌組 ---------- */
 function clearDeckFull(deckName){
   const cards = store.cards.filter(c => (c.deck || '預設') === deckName);
   if (!cards.length) return;
@@ -1567,7 +1689,7 @@ function renderSettings(){
             </li>
             <li>複製資料夾網址（整條貼進來也可以，程式會自動抓 ID）</li>
             <li>前往 <a href="https://script.google.com" target="_blank" style="color:var(--pri)">script.google.com</a> → 新增專案</li>
-            <li>貼上後端程式碼（見說明），然後 <b>部署 → 新增部署 → 網頁應用程式</b><br>
+            <li>貼上後端程式碼，然後 <b>部署 → 新增部署 → 網頁應用程式</b><br>
               <span class="muted" style="font-size:12px">執行身分：我　·　存取權：任何人</span>
             </li>
             <li>複製 Web App URL（結尾 <code>/exec</code>），貼到上方欄位</li>
