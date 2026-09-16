@@ -59,6 +59,7 @@
   .btn:active{transform:translateY(0)}
   .btn.primary{background:var(--pri);border-color:var(--pri);color:#fff}
   .btn.ghost{background:transparent}
+  .btn.sm{padding:6px 10px;font-size:12px;border-radius:8px}
   .btn.big{padding:14px 34px;font-size:16px;border-radius:13px;margin-top:8px;width:100%;max-width:340px}
   .btn:disabled{opacity:.5;cursor:not-allowed;transform:none}
   .toolbar{display:flex;gap:9px;flex-wrap:wrap;align-items:center;margin-bottom:14px}
@@ -180,6 +181,33 @@
   @keyframes rot{to{transform:rotate(360deg)}}
   .hintBox{background:var(--pri-soft);border-radius:10px;padding:12px 14px;font-size:13px;
     line-height:1.7;margin-top:10px;color:var(--text)}
+  /* 統計頁新元素 */
+  .statFilters{display:flex;gap:9px;flex-wrap:wrap;margin-bottom:12px;align-items:center}
+  .statFilters select{min-width:140px}
+  .rowBadge{display:inline-block;padding:2px 8px;border-radius:6px;font-size:11px;font-weight:700}
+  .deckRowActions{display:flex;gap:5px}
+  .miniBtn{border:1px solid var(--line);background:var(--panel);border-radius:7px;
+    padding:4px 9px;font-size:11px;font-weight:700;cursor:pointer;font-family:inherit;
+    color:var(--text);white-space:nowrap;transition:.15s}
+  .miniBtn:hover{border-color:var(--pri);color:var(--pri)}
+  .miniBtn.danger{color:#dc2626;border-color:#fca5a5}
+  .miniBtn.danger:hover{background:#dc2626;color:#fff;border-color:#dc2626}
+  .table-num{text-align:right;font-variant-numeric:tabular-nums}
+  .table-center{text-align:center}
+  .chipRow{display:flex;gap:6px;flex-wrap:wrap}
+  .chip{font-size:11px;font-weight:700;padding:3px 9px;border-radius:999px;background:var(--bg);color:var(--muted)}
+  .chip.g{background:#dcfce7;color:#166534}
+  .chip.y{background:#fef9c3;color:#854d0e}
+  .chip.o{background:#ffedd5;color:#9a3412}
+  .chip.r{background:#fee2e2;color:#991b1b}
+  .chip.b{background:#dbeafe;color:#1e40af}
+  @media (prefers-color-scheme: dark){
+    .chip.g{background:#14532d33;color:#86efac}
+    .chip.y{background:#713f1233;color:#fde047}
+    .chip.o{background:#7c2d1233;color:#fdba74}
+    .chip.r{background:#7f1d1d33;color:#fca5a5}
+    .chip.b{background:#1e3a8a33;color:#93c5fd}
+  }
   @media (max-width: 720px){ .two{grid-template-columns:1fr} }
   @media (max-width: 560px){
     .app{padding:12px 10px 80px}
@@ -213,6 +241,7 @@
     .cmp{font-size:12px}
     .cmp > div{padding:8px 4px}
     .modeSwitch button{padding:7px 13px;font-size:12px}
+    .statFilters select{width:100%}
   }
   @media (max-width: 360px){
     .grade{flex:1 1 calc(50% - 6px)}
@@ -282,6 +311,23 @@ function formatDate(ts){
   const pad = n => String(n).padStart(2, '0');
   return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
 }
+function formatShort(ts){
+  if (!ts) return '—';
+  const d = new Date(ts);
+  const pad = n => String(n).padStart(2, '0');
+  return `${d.getFullYear()}/${pad(d.getMonth()+1)}/${pad(d.getDate())}`;
+}
+function relativeDate(ts){
+  if (!ts) return '—';
+  const diff = ts - Date.now();
+  const days = Math.round(diff / 86400000);
+  if (days === 0) return '今天';
+  if (days === 1) return '明天';
+  if (days === -1) return '昨天';
+  if (days > 1 && days < 30) return `${days} 天後`;
+  if (days < -1 && days > -30) return `${-days} 天前`;
+  return formatShort(ts);
+}
 function parseDate(v){
   if (v == null || v === '') return 0;
   if (v instanceof Date) return v.getTime();
@@ -314,32 +360,21 @@ function base64ToBytes(b64){
   return bytes;
 }
 
-/* 從各種 Google Drive 網址格式萃取資料夾 ID */
 function extractFolderId(input){
   const s = String(input || '').trim();
   if (!s) return '';
-
-  // /folders/XXXX（含 /u/0/folders/XXXX 這種形式）
   let m = s.match(/\/folders\/([A-Za-z0-9_-]{10,})/);
   if (m) return m[1];
-
-  // ?id=XXXX 或 &id=XXXX
   m = s.match(/[?&]id=([A-Za-z0-9_-]{10,})/);
   if (m) return m[1];
-
-  // /d/XXXX
   m = s.match(/\/d\/([A-Za-z0-9_-]{10,})/);
   if (m) return m[1];
-
-  // 已經是純 ID（含 - _ 的英數字串，20 字以上，不含任何 URL 符號）
   if (/^[A-Za-z0-9_-]{20,}$/.test(s) && !s.includes('/') && !s.includes('.') && !s.includes(':')) {
     return s;
   }
-
   return '';
 }
 
-/* 取得乾淨的 folderId（並自動修正 store 內的值） */
 function getCleanFolderId(){
   const cleaned = extractFolderId(store.settings.folderId);
   if (cleaned && cleaned !== store.settings.folderId){
@@ -389,15 +424,11 @@ function save(){
 }
 
 /* =========================================================
-   3. 雲端資料夾狀態
+   3. 雲端資料夾
    ========================================================= */
 const cloudState = {
-  connected: false,
-  syncing: false,
-  lastSync: 0,
-  fileCount: 0,
-  cardCount: 0,
-  error: '',
+  connected: false, syncing: false, lastSync: 0,
+  fileCount: 0, cardCount: 0, error: '',
 };
 let uploadTimer = null;
 
@@ -405,7 +436,6 @@ function cloudReady(){
   return !!(store.settings.cloudUrl && extractFolderId(store.settings.folderId));
 }
 
-/* --- 下載：抓取雲端資料夾所有卡片 + 進度 --- */
 async function syncFromCloud(silent){
   const cloudUrl = store.settings.cloudUrl;
   const folderId = getCleanFolderId();
@@ -423,8 +453,6 @@ async function syncFromCloud(silent){
 
   try {
     const sep = cloudUrl.includes('?') ? '&' : '?';
-
-    // 1) 抓卡片檔列表
     const listRes = await fetch(`${cloudUrl}${sep}action=list&folderId=${encodeURIComponent(folderId)}&_=${Date.now()}`);
     if (!listRes.ok) throw new Error('HTTP ' + listRes.status);
     const listData = await listRes.json();
@@ -441,7 +469,6 @@ async function syncFromCloud(silent){
 
     applyDecks(decks);
 
-    // 2) 抓進度
     try {
       const metaRes = await fetch(`${cloudUrl}${sep}action=meta&folderId=${encodeURIComponent(folderId)}&_=${Date.now()}`);
       if (metaRes.ok){
@@ -472,7 +499,6 @@ async function syncFromCloud(silent){
   }
 }
 
-/* --- 解析單一雲端檔案（base64） --- */
 function parseCloudFile(file){
   let wb;
   const bytes = base64ToBytes(file.base64);
@@ -515,11 +541,9 @@ function parseCloudFile(file){
   return cards;
 }
 
-/* --- 合併雲端卡片（保留既有 id 與進度） --- */
 function applyDecks(decks){
   const byKey = new Map(store.cards.map(c => [c.front + '\u0001' + c.back, c]));
   const newCards = [];
-
   decks.forEach(({ cards }) => {
     cards.forEach(c => {
       const key = c.front + '\u0001' + c.back;
@@ -536,11 +560,9 @@ function applyDecks(decks){
       }
     });
   });
-
   store.cards = newCards;
 }
 
-/* --- 上傳：把進度寫回雲端（防抖 2 秒） --- */
 function scheduleUpload(){
   if (!cloudReady()) return;
   clearTimeout(uploadTimer);
@@ -566,8 +588,6 @@ async function uploadToCloud(){
     cloudState.lastSync = Date.now();
   } catch(e){ console.warn('上傳失敗', e); }
 }
-
-/* --- 強制上傳（離開頁面時） --- */
 function flushUpload(){
   if (uploadTimer){
     clearTimeout(uploadTimer);
@@ -652,18 +672,15 @@ function buildQueue(opts){
   let list = store.cards.slice();
   if (opts.deck && opts.deck !== 'all')
     list = list.filter(c => (c.deck || '預設') === opts.deck);
-
   if (opts.scope === 'due')       list = list.filter(c => isDue(c.id));
   else if (opts.scope === 'new')  list = list.filter(c => !store.progress[c.id]);
   else if (opts.scope === 'weak') list = list.filter(c => { const l = getLevel(c.id); return l > 0 && l <= 2; });
-
   list.sort((a, b) => {
     const pa = store.progress[a.id], pb = store.progress[b.id];
     const da = pa ? pa.due : 0, db = pb ? pb.due : 0;
     if (da !== db) return da - db;
     return Math.random() - 0.5;
   });
-
   if (opts.limit > 0) list = list.slice(0, opts.limit);
   return list;
 }
@@ -674,6 +691,11 @@ function buildQueue(opts){
 let currentTab = 'browse';
 let session = null;
 let statsMode = 'all';
+// 個別字卡統計的篩選狀態
+let cardStatsDeck = 'all';
+let cardStatsLevel = 'all';
+let cardStatsSort = 'due';
+let cardStatsLimit = 200;
 
 function updateHeader(){
   const total  = store.cards.length;
@@ -803,7 +825,6 @@ function renderGrid(){
     const id = box.dataset.id;
     const card = store.cards.find(c => c.id === id);
     if (!card) return;
-
     const btn = e.target.closest('button');
     if (btn){
       if (btn.dataset.act === 'speak') speak(card.front);
@@ -1039,6 +1060,28 @@ function calcStats(logs){
   };
 }
 
+/* 依卡片建立 log 索引：Map<cardId, {total, ok, vTotal, vOk, lTotal, lOk}> */
+function buildLogIndex(){
+  const map = new Map();
+  store.logs.forEach(l => {
+    let s = map.get(l.id);
+    if (!s){
+      s = { total:0, ok:0, vTotal:0, vOk:0, lTotal:0, lOk:0 };
+      map.set(l.id, s);
+    }
+    s.total++;
+    if (l.lv >= 3) s.ok++;
+    if (l.mode === 'visual'){
+      s.vTotal++;
+      if (l.lv >= 3) s.vOk++;
+    } else if (l.mode === 'listen'){
+      s.lTotal++;
+      if (l.lv >= 3) s.lOk++;
+    }
+  });
+  return map;
+}
+
 function renderStats(){
   const total   = store.cards.length;
   const learned = store.cards.filter(c => store.progress[c.id]).length;
@@ -1086,17 +1129,22 @@ function renderStats(){
   }
   const maxFut = Math.max(1, ...future.map(f => f.n));
 
-  const deckMap = {};
+  const modeLabel = statsMode === 'all' ? '全部模式' : `${MODE_META[statsMode].icon} ${MODE_META[statsMode].name}`;
+
+  /* --- 牌組詳細統計 --- */
+  const deckDetail = {};
   store.cards.forEach(c => {
     const d = c.deck || '預設';
-    if (!deckMap[d]) deckMap[d] = { total:0, learned:0, mastered:0 };
-    deckMap[d].total++;
-    const lv = getLevel(c.id);
-    if (lv) deckMap[d].learned++;
-    if (lv === 5) deckMap[d].mastered++;
+    if (!deckDetail[d]) deckDetail[d] = { total:0, lv:{0:0,1:0,2:0,3:0,4:0,5:0}, reps:0 };
+    deckDetail[d].total++;
+    deckDetail[d].lv[getLevel(c.id)]++;
+    const p = store.progress[c.id];
+    if (p) deckDetail[d].reps += p.reps || 0;
   });
+  const deckNames = Object.keys(deckDetail);
 
-  const modeLabel = statsMode === 'all' ? '全部模式' : `${MODE_META[statsMode].icon} ${MODE_META[statsMode].name}`;
+  /* --- 個別字卡統計 --- */
+  const logIndex = buildLogIndex();
 
   $('#view').innerHTML = `
     <div class="modeSwitch" id="modeSwitch">
@@ -1193,36 +1241,75 @@ function renderStats(){
       </div>
     </div>
 
+    <!-- ===== 牌組詳細統計 ===== -->
     <div class="panel" style="margin-bottom:13px">
-      <h3>🗂 牌組統計</h3>
-      ${Object.keys(deckMap).length ? `
+      <h3>🗂 牌組詳細統計（每個 Excel）</h3>
+      ${deckNames.length ? `
       <div class="tableWrap">
         <table>
           <thead>
             <tr>
               <th style="padding:8px 6px">牌組</th>
-              <th style="padding:8px 6px">總數</th>
-              <th style="padding:8px 6px">已學習</th>
-              <th style="padding:8px 6px">精熟</th>
-              <th style="padding:8px 6px">進度</th>
+              <th style="padding:8px 6px" class="table-num">總數</th>
+              <th style="padding:8px 6px" class="table-center">未學</th>
+              ${[1,2,3,4,5].map(n => `<th style="padding:8px 6px" class="table-center" title="${LV_MAP[n].name}">${LV_MAP[n].name}</th>`).join('')}
+              <th style="padding:8px 6px" class="table-num">平均複習</th>
+              <th style="padding:8px 6px" class="table-center">操作</th>
             </tr>
           </thead>
           <tbody>
-            ${Object.entries(deckMap).map(([d, v]) => `
-              <tr style="border-top:1px solid var(--line)">
-                <td style="padding:9px 6px;font-weight:700">${esc(d)}</td>
-                <td style="padding:9px 6px">${v.total}</td>
-                <td style="padding:9px 6px">${v.learned}</td>
-                <td style="padding:9px 6px">${v.mastered}</td>
-                <td style="padding:9px 6px;min-width:100px">
-                  <div class="lvbar" style="height:8px">
-                    <div class="lvfill" style="width:${(v.mastered / v.total * 100).toFixed(1)}%;background:var(--pri)"></div>
+            ${deckNames.map(d => {
+              const v = deckDetail[d];
+              const avg = v.total ? (v.reps / v.total).toFixed(1) : '0.0';
+              return `<tr style="border-top:1px solid var(--line)">
+                <td style="padding:9px 6px;font-weight:700;max-width:180px;word-break:break-word">${esc(d)}</td>
+                <td style="padding:9px 6px" class="table-num">${v.total}</td>
+                <td style="padding:9px 6px" class="table-center">${v.lv[0]}</td>
+                ${[1,2,3,4,5].map(n => {
+                  const L = LV_MAP[n];
+                  const c = v.lv[n];
+                  return `<td style="padding:9px 6px" class="table-center">
+                    ${c ? `<span style="color:${L.color};font-weight:700">${c}</span>` : '<span class="muted">·</span>'}
+                  </td>`;
+                }).join('')}
+                <td style="padding:9px 6px" class="table-num">${avg}</td>
+                <td style="padding:9px 6px" class="table-center">
+                  <div class="deckRowActions">
+                    <button class="miniBtn" data-deck-progress="${esc(d)}" title="只清學習進度">↺ 清進度</button>
+                    <button class="miniBtn danger" data-deck-clear="${esc(d)}" title="移除卡片與進度">🗑 刪除</button>
                   </div>
                 </td>
-              </tr>`).join('')}
+              </tr>`;
+            }).join('')}
           </tbody>
         </table>
       </div>` : '<p class="muted" style="font-size:13px">尚無資料</p>'}
+    </div>
+
+    <!-- ===== 個別字卡統計 ===== -->
+    <div class="panel" style="margin-bottom:13px">
+      <h3>🃏 個別字卡統計</h3>
+      ${total ? `
+      <div class="statFilters">
+        <select id="csDeck" class="input">
+          <option value="all">全部牌組</option>
+          ${deckNames.map(d => `<option value="${esc(d)}" ${cardStatsDeck===d?'selected':''}>${esc(d)}</option>`).join('')}
+        </select>
+        <select id="csLevel" class="input">
+          <option value="all">全部等級</option>
+          <option value="0" ${cardStatsLevel==='0'?'selected':''}>未學習</option>
+          ${[5,4,3,2,1].map(n => `<option value="${n}" ${cardStatsLevel===String(n)?'selected':''}>${LV_MAP[n].name}</option>`).join('')}
+        </select>
+        <select id="csSort" class="input">
+          <option value="due" ${cardStatsSort==='due'?'selected':''}>依到期日</option>
+          <option value="reps" ${cardStatsSort==='reps'?'selected':''}>依複習次數（多→少）</option>
+          <option value="wrong" ${cardStatsSort==='wrong'?'selected':''}>依錯誤率高</option>
+          <option value="acc" ${cardStatsSort==='acc'?'selected':''}>依記得率低</option>
+          <option value="lv" ${cardStatsSort==='lv'?'selected':''}>依等級（低→高）</option>
+          <option value="front" ${cardStatsSort==='front'?'selected':''}>依正面字母</option>
+        </select>
+      </div>
+      <div id="csResult"></div>` : '<p class="muted" style="font-size:13px">尚無卡片</p>'}
     </div>
   `;
 
@@ -1232,6 +1319,172 @@ function renderStats(){
     statsMode = b.dataset.m;
     renderStats();
   };
+
+  // 牌組操作
+  const view = $('#view');
+  view.querySelectorAll('[data-deck-progress]').forEach(btn => {
+    btn.onclick = () => clearDeckProgress(btn.dataset.deckProgress);
+  });
+  view.querySelectorAll('[data-deck-clear]').forEach(btn => {
+    btn.onclick = () => clearDeckFull(btn.dataset.deckClear);
+  });
+
+  // 個別字卡統計
+  if (total){
+    cardStatsLimit = 200;
+
+    const renderCsResult = () => {
+      const wrap = $('#csResult');
+      if (!wrap) return;
+
+      let list = store.cards.slice();
+      if (cardStatsDeck !== 'all')
+        list = list.filter(c => (c.deck || '預設') === cardStatsDeck);
+      if (cardStatsLevel !== 'all'){
+        if (cardStatsLevel === '0') list = list.filter(c => !store.progress[c.id]);
+        else list = list.filter(c => getLevel(c.id) === Number(cardStatsLevel));
+      }
+
+      list.sort((a, b) => {
+        const pa = store.progress[a.id], pb = store.progress[b.id];
+        const sa = logIndex.get(a.id) || { total:0, ok:0 };
+        const sb = logIndex.get(b.id) || { total:0, ok:0 };
+        if (cardStatsSort === 'due'){
+          const da = pa ? pa.due : 0, db = pb ? pb.due : 0;
+          return da - db;
+        }
+        if (cardStatsSort === 'reps'){
+          const ra = pa ? pa.reps : 0, rb = pb ? pb.reps : 0;
+          return rb - ra;
+        }
+        if (cardStatsSort === 'wrong'){
+          const wa = sa.total ? (sa.total - sa.ok) / sa.total : 0;
+          const wb = sb.total ? (sb.total - sb.ok) / sb.total : 0;
+          return wb - wa;
+        }
+        if (cardStatsSort === 'acc'){
+          const aa = sa.total ? sa.ok / sa.total : 2;
+          const ab = sb.total ? sb.ok / sb.total : 2;
+          return aa - ab;
+        }
+        if (cardStatsSort === 'lv'){
+          const la = getLevel(a.id) || 99;
+          const lb = getLevel(b.id) || 99;
+          return la - lb;
+        }
+        if (cardStatsSort === 'front'){
+          return String(a.front).localeCompare(String(b.front), 'zh-Hant');
+        }
+        return 0;
+      });
+
+      const totalShown = list.length;
+      const show = list.slice(0, cardStatsLimit);
+
+      if (!show.length){
+        wrap.innerHTML = '<p class="muted" style="font-size:13px;text-align:center;padding:20px">沒有符合條件的卡片</p>';
+        return;
+      }
+
+      wrap.innerHTML = `
+        <div class="muted" style="font-size:12px;margin-bottom:8px">
+          顯示 ${show.length} / ${totalShown} 張
+          ${totalShown > show.length ? `（還有 ${totalShown - show.length} 張，請縮小篩選或按下方按鈕）` : ''}
+        </div>
+        <div class="tableWrap">
+          <table>
+            <thead>
+              <tr>
+                <th style="padding:8px 6px">正面</th>
+                <th style="padding:8px 6px">背面</th>
+                <th style="padding:8px 6px">牌組</th>
+                <th style="padding:8px 6px" class="table-center">等級</th>
+                <th style="padding:8px 6px" class="table-num">複習</th>
+                <th style="padding:8px 6px" class="table-num">記得率</th>
+                <th style="padding:8px 6px" class="table-center">視覺</th>
+                <th style="padding:8px 6px" class="table-center">聽力</th>
+                <th style="padding:8px 6px" class="table-center">下次到期</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${show.map(c => {
+                const lv = getLevel(c.id);
+                const L = lv ? LV_MAP[lv] : null;
+                const s = logIndex.get(c.id) || { total:0, ok:0, vTotal:0, vOk:0, lTotal:0, lOk:0 };
+                const p = store.progress[c.id] || {};
+                const acc = s.total ? Math.round(s.ok / s.total * 100) : null;
+                const vAcc = s.vTotal ? Math.round(s.vOk / s.vTotal * 100) : null;
+                const lAcc = s.lTotal ? Math.round(s.lOk / s.lTotal * 100) : null;
+                const chipCls = lv === 5 ? 'b' : lv === 4 ? 'g' : lv === 3 ? 'y' : lv === 2 ? 'o' : lv === 1 ? 'r' : '';
+                return `<tr style="border-top:1px solid var(--line)">
+                  <td style="padding:9px 6px;font-weight:700;max-width:200px;word-break:break-word">${esc(c.front)}</td>
+                  <td style="padding:9px 6px;max-width:200px;word-break:break-word;color:var(--muted)">${esc(c.back)}</td>
+                  <td style="padding:9px 6px;font-size:12px;color:var(--muted);max-width:120px;word-break:break-word">${esc(c.deck || '預設')}</td>
+                  <td style="padding:9px 6px" class="table-center">
+                    ${L ? `<span class="chip ${chipCls}">${L.name}</span>` : '<span class="chip">未學</span>'}
+                  </td>
+                  <td style="padding:9px 6px" class="table-num">${s.total || 0}</td>
+                  <td style="padding:9px 6px" class="table-num">${acc !== null ? acc + '%' : '<span class="muted">—</span>'}</td>
+                  <td style="padding:9px 6px" class="table-center" title="視覺 ${s.vOk}/${s.vTotal}">${vAcc !== null ? vAcc + '%' : '<span class="muted">—</span>'}</td>
+                  <td style="padding:9px 6px" class="table-center" title="聽力 ${s.lOk}/${s.lTotal}">${lAcc !== null ? lAcc + '%' : '<span class="muted">—</span>'}</td>
+                  <td style="padding:9px 6px" class="table-center;font-size:12px" style="font-size:12px">
+                    ${p.due ? `<span class="${p.due <= Date.now() ? '' : 'muted'}" style="${p.due <= Date.now() ? 'color:#dc2626;font-weight:700' : ''}">${relativeDate(p.due)}</span>` : '<span class="muted">—</span>'}
+                  </td>
+                </tr>`;
+              }).join('')}
+            </tbody>
+          </table>
+        </div>
+        ${totalShown > show.length
+          ? `<div style="text-align:center;margin-top:12px">
+              <button class="btn ghost" id="csMoreBtn">顯示更多（每次 +200）</button>
+            </div>` : ''}
+      `;
+
+      const moreBtn = $('#csMoreBtn');
+      if (moreBtn) moreBtn.onclick = () => {
+        cardStatsLimit += 200;
+        renderCsResult();
+      };
+    };
+
+    $('#csDeck').onchange = e => { cardStatsDeck = e.target.value; cardStatsLimit = 200; renderCsResult(); };
+    $('#csLevel').onchange = e => { cardStatsLevel = e.target.value; cardStatsLimit = 200; renderCsResult(); };
+    $('#csSort').onchange = e => { cardStatsSort = e.target.value; renderCsResult(); };
+    renderCsResult();
+  }
+}
+
+/* ---------- 清空牌組進度（保留卡片） ---------- */
+function clearDeckProgress(deckName){
+  const cards = store.cards.filter(c => (c.deck || '預設') === deckName);
+  if (!cards.length) return;
+  if (!confirm(`清空「${deckName}」的學習進度？\n\n卡片會保留，只清除等級與複習紀錄。`)) return;
+
+  const ids = new Set(cards.map(c => c.id));
+  ids.forEach(id => delete store.progress[id]);
+  store.logs = store.logs.filter(l => !ids.has(l.id));
+  save(); scheduleUpload();
+  render(); toast(`已清空「${deckName}」的進度`);
+}
+
+/* ---------- 刪除整份牌組（卡片 + 進度） ---------- */
+function clearDeckFull(deckName){
+  const cards = store.cards.filter(c => (c.deck || '預設') === deckName);
+  if (!cards.length) return;
+
+  const msg = cloudReady()
+    ? `確定刪除「${deckName}」整個牌組？\n\n共 ${cards.length} 張卡片與其進度都會從本機移除。\n\n⚠️ 若雲端資料夾仍有對應的 Excel 檔，下次同步會再次載入。`
+    : `確定刪除「${deckName}」整個牌組？\n\n共 ${cards.length} 張卡片與其進度都會被刪除。`;
+
+  if (!confirm(msg)) return;
+
+  const ids = new Set(cards.map(c => c.id));
+  store.cards = store.cards.filter(c => !ids.has(c.id));
+  ids.forEach(id => delete store.progress[id]);
+  store.logs = store.logs.filter(l => !ids.has(l.id));
+  save(); scheduleUpload();
+  render(); toast(`已刪除「${deckName}」`);
 }
 
 /* =========================================================
@@ -1385,23 +1638,19 @@ function renderSettings(){
     </div>
   `;
 
-  /* --- 雲端按鈕 --- */
   if (ready){
     const syncBtn = $('#syncNow');
     if (syncBtn) syncBtn.onclick = () => syncFromCloud(false);
     $('#editCloud').onclick = () => {
       if (!confirm('編輯連線設定？會回到輸入畫面（目前進度不受影響）。')) return;
-      // 保留資料，但讓 UI 回到可編輯狀態
       cloudState.connected = false;
       cloudState.error = '';
-      // 暫時清空以便顯示輸入畫面，但保存原值到輸入框
       const oldUrl = store.settings.cloudUrl;
       const oldFid = store.settings.folderId;
       store.settings.cloudUrl = '';
       store.settings.folderId = '';
       save();
       render();
-      // 填入原本的值
       setTimeout(() => {
         const u = $('#inputCloudUrl');
         const f = $('#inputFolderId');
@@ -1428,16 +1677,8 @@ function renderSettings(){
       const errBox = $('#connectError');
       errBox.style.display = 'none';
 
-      if (!url){
-        errBox.textContent = '請填入 Web App 網址';
-        errBox.style.display = 'block';
-        return;
-      }
-      if (!rawId){
-        errBox.textContent = '請填入資料夾 ID 或網址';
-        errBox.style.display = 'block';
-        return;
-      }
+      if (!url){ errBox.textContent = '請填入 Web App 網址'; errBox.style.display = 'block'; return; }
+      if (!rawId){ errBox.textContent = '請填入資料夾 ID 或網址'; errBox.style.display = 'block'; return; }
 
       const fid = extractFolderId(rawId);
       if (!fid){
@@ -1471,7 +1712,6 @@ function renderSettings(){
     };
   }
 
-  /* --- Excel --- */
   $('#expXlsx').onclick = exportExcel;
   $('#impBtn').onclick  = () => $('#fileInput').click();
   $('#fileInput').onchange = e => {
@@ -1481,7 +1721,6 @@ function renderSettings(){
   };
   $('#tplBtn').onclick = downloadTemplate;
 
-  /* --- 語音 --- */
   $('#setLang').onchange = e => { store.settings.lang = e.target.value; save(); };
   $('#setRate').oninput = e => {
     store.settings.rate = Number(e.target.value);
@@ -1491,7 +1730,6 @@ function renderSettings(){
   $('#setHint').onchange = e => { store.settings.showFrontInListen = e.target.checked; save(); };
   $('#testSpeak').onclick = () => speak('Hello, 你好');
 
-  /* --- 危險 --- */
   $('#resetProgress').onclick = () => {
     if (!confirm('確定重置所有學習進度嗎？此動作無法復原。')) return;
     store.progress = {}; store.logs = [];
@@ -1798,18 +2036,14 @@ document.addEventListener('visibilitychange', () => {
   if (document.visibilityState === 'hidden') flushUpload();
 });
 
-/* 啟動：先做資料遷移，再渲染 */
 (async () => {
-  // 自動修正：把舊資料中的網址形式轉成純 ID
   const cleaned = extractFolderId(store.settings.folderId);
   if (cleaned && cleaned !== store.settings.folderId){
     console.log('[遷移] 資料夾 ID 由網址轉為純 ID：', cleaned);
     store.settings.folderId = cleaned;
     save();
   }
-
   render();
-
   if (cloudReady() && store.settings.autoSync){
     await syncFromCloud(true);
   }
