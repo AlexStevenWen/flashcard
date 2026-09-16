@@ -2158,4 +2158,196 @@ function importExcel(file){
       }
       if (!cardSheetName){ alert('找不到可辨識的卡片工作表'); return; }
 
-      const rows = XLSX.utils.sheet
+      const rows = XLSX.utils.sheet_to_json(wb.Sheets[cardSheetName], { header:1, blankrows:false, defval:'' });
+      if (rows.length < 2){ alert('工作表沒有資料列'); return; }
+
+      const head = rows[0].map(x => String(x).trim());
+      const findIdx = (keys, extra) => head.findIndex(h => {
+        const s = h.toLowerCase();
+        return keys.some(k => s.includes(k.toLowerCase()));
+      });
+      const idx = {
+        id:       head.findIndex(h => h.toLowerCase() === 'id'),
+        front:    findIdx(FRONT_KEYS),
+        back:     findIdx(BACK_KEYS),
+        note:     findIdx(NOTE_KEYS),
+        deck:     head.findIndex(h => h.includes('牌組') || h.toLowerCase().includes('deck')),
+        // 視覺
+        vLevel:   head.findIndex(h => h.includes('視覺等級')),
+        vReps:    head.findIndex(h => h.includes('視覺複習次數')),
+        vEase:    head.findIndex(h => h.includes('視覺易度')),
+        vInterval:head.findIndex(h => h.includes('視覺間隔')),
+        vDue:     head.findIndex(h => h.includes('視覺下次到期')),
+        vLapses:  head.findIndex(h => h.includes('視覺遺忘')),
+        vLast:    head.findIndex(h => h.includes('視覺最後')),
+        // 聽力
+        lLevel:   head.findIndex(h => h.includes('聽力等級')),
+        lReps:    head.findIndex(h => h.includes('聽力複習次數')),
+        lEase:    head.findIndex(h => h.includes('聽力易度')),
+        lInterval:head.findIndex(h => h.includes('聽力間隔')),
+        lDue:     head.findIndex(h => h.includes('聽力下次到期')),
+        lLapses:  head.findIndex(h => h.includes('聽力遺忘')),
+        lLast:    head.findIndex(h => h.includes('聽力最後')),
+        // 舊格式（單一份）
+        legacyLevel: head.findIndex(h => h === '等級' || h === '等级' || h.toLowerCase() === 'level'),
+      };
+
+      if (idx.front < 0 || idx.back < 0){ alert('工作表需包含「正面」與「背面」欄位'); return; }
+
+      const hasDual = idx.vLevel >= 0 || idx.lLevel >= 0;
+      const hasLegacy = idx.legacyLevel >= 0;
+
+      let merge = false;
+      if (store.cards.length){
+        merge = confirm(`目前已有 ${store.cards.length} 張卡片。\n\n按「確定」＝合併\n按「取消」＝覆蓋`);
+      }
+
+      if (!merge){
+        store.cards = [];
+        store.progress = { visual:{}, listen:{} };
+        store.logs = [];
+      }
+
+      const byId  = new Map(store.cards.map(c => [c.id, c]));
+      const byKey = new Map(store.cards.map(c => [c.front + '\u0001' + c.back, c]));
+
+      let added = 0, updated = 0, skipped = 0;
+
+      for (let i = 1; i < rows.length; i++){
+        const r = rows[i] || [];
+        const front = String(r[idx.front] ?? '').trim();
+        const back  = String(r[idx.back]  ?? '').trim();
+        if (!front && !back) continue;
+
+        const rowId = idx.id >= 0 ? String(r[idx.id] ?? '').trim() : '';
+        const key = front + '\u0001' + back;
+
+        let card = (rowId && byId.get(rowId)) || byKey.get(key);
+
+        if (card){
+          card.front = front; card.back = back;
+          if (idx.note >= 0) card.note = String(r[idx.note] ?? '').trim();
+          if (idx.deck >= 0){
+            const d = String(r[idx.deck] ?? '').trim();
+            if (d) card.deck = d;
+          }
+          updated++;
+        } else {
+          if (!front || !back){ skipped++; continue; }
+          card = {
+            id: rowId || uid(),
+            front, back,
+            note: idx.note >= 0 ? String(r[idx.note] ?? '').trim() : '',
+            deck: idx.deck >= 0 ? (String(r[idx.deck] ?? '').trim() || '預設') : '預設',
+            created: Date.now(),
+          };
+          store.cards.push(card);
+          byId.set(card.id, card);
+          byKey.set(key, card);
+          added++;
+        }
+
+        // 讀進度
+        if (hasDual){
+          // 視覺
+          if (idx.vLevel >= 0){
+            const lv = parseLevel(r[idx.vLevel]);
+            if (lv > 0){
+              const p = getProgress(card.id, 'visual') || newProgress();
+              p.level = lv;
+              if (idx.vReps >= 0)     p.reps     = Number(r[idx.vReps])     || 0;
+              if (idx.vEase >= 0)     p.ease     = Number(r[idx.vEase])     || 2.5;
+              if (idx.vInterval >= 0) p.interval = Number(r[idx.vInterval]) || 0;
+              if (idx.vLapses >= 0)   p.lapses   = Number(r[idx.vLapses])   || 0;
+              if (idx.vLast >= 0)     p.last     = parseDate(r[idx.vLast])  || Date.now();
+              if (idx.vDue >= 0)      p.due      = parseDate(r[idx.vDue])   || (Date.now() + p.interval * 86400000);
+              setProgress(card.id, 'visual', p);
+            }
+          }
+          // 聽力
+          if (idx.lLevel >= 0){
+            const lv = parseLevel(r[idx.lLevel]);
+            if (lv > 0){
+              const p = getProgress(card.id, 'listen') || newProgress();
+              p.level = lv;
+              if (idx.lReps >= 0)     p.reps     = Number(r[idx.lReps])     || 0;
+              if (idx.lEase >= 0)     p.ease     = Number(r[idx.lEase])     || 2.5;
+              if (idx.lInterval >= 0) p.interval = Number(r[idx.lInterval]) || 0;
+              if (idx.lLapses >= 0)   p.lapses   = Number(r[idx.lLapses])   || 0;
+              if (idx.lLast >= 0)     p.last     = parseDate(r[idx.lLast])  || Date.now();
+              if (idx.lDue >= 0)      p.due      = parseDate(r[idx.lDue])   || (Date.now() + p.interval * 86400000);
+              setProgress(card.id, 'listen', p);
+            }
+          }
+        } else if (hasLegacy){
+          // 舊格式 → 兩邊都給
+          const lv = parseLevel(r[idx.legacyLevel]);
+          if (lv > 0){
+            const base = newProgress();
+            base.level = lv;
+            setProgress(card.id, 'visual', JSON.parse(JSON.stringify(base)));
+            setProgress(card.id, 'listen', JSON.parse(JSON.stringify(base)));
+          }
+        }
+      }
+
+      save();
+      scheduleUpload();
+      session = null;
+      render();
+
+      alert(
+        `匯入完成！\n新增 ${added} 張・更新 ${updated} 張` +
+        (skipped ? `・略過 ${skipped} 張` : '') +
+        (hasDual ? `\n（含視覺與聽力兩套進度）` : hasLegacy ? `\n（舊格式進度，複製到兩個模式）` : '')
+      );
+    } catch(err){
+      console.error(err);
+      alert('匯入失敗：' + err.message);
+    }
+  };
+  reader.readAsArrayBuffer(file);
+}
+
+/* =========================================================
+   13. 事件綁定與啟動
+   ========================================================= */
+$('#tabs').addEventListener('click', e => {
+  const b = e.target.closest('button[data-tab]');
+  if (!b) return;
+  const tab = b.dataset.tab;
+  if (session && ((tab !== 'visual' && session.mode === 'visual') ||
+                  (tab !== 'listen' && session.mode === 'listen'))){
+    if (!confirm('確定要離開本次學習嗎？進度已自動儲存。')) return;
+    session = null;
+  }
+  currentTab = tab;
+  render();
+});
+
+document.addEventListener('keydown', e => {
+  if (['INPUT','TEXTAREA','SELECT'].includes(e.target.tagName)) return;
+  if (!session || session.idx >= session.queue.length) return;
+  if (e.code === 'Space'){ e.preventDefault(); flipCard(); }
+  else if (['1','2','3','4','5'].includes(e.key)){ e.preventDefault(); doGrade(Number(e.key)); }
+});
+
+window.addEventListener('beforeunload', flushUpload);
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'hidden') flushUpload();
+});
+
+(async () => {
+  const cleaned = extractFolderId(store.settings.folderId);
+  if (cleaned && cleaned !== store.settings.folderId){
+    store.settings.folderId = cleaned;
+    save();
+  }
+  render();
+  if (cloudReady() && store.settings.autoSync){
+    await syncFromCloud(true);
+  }
+})();
+</script>
+</body>
+</html>
