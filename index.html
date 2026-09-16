@@ -2,59 +2,76 @@
 <html lang="zh-Hant">
 <head>
 <meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width,initial-scale=1" />
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
+<meta name="theme-color" content="#4f46e5" />
 <title>字卡記憶 · FlashCard Master</title>
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <style>
   :root{
     --bg:#f4f5fa; --panel:#ffffff; --text:#1a1f36; --muted:#6b7280;
     --line:#e6e8ef; --pri:#4f46e5; --pri-soft:#eef2ff; --radius:16px;
+    --visual:#4f46e5; --listen:#0891b2;
   }
   @media (prefers-color-scheme: dark){
     :root{ --bg:#0f1117; --panel:#171a23; --text:#e8eaf2; --muted:#9aa2b1;
-           --line:#262a36; --pri:#818cf8; --pri-soft:#1e2130; }
+           --line:#262a36; --pri:#818cf8; --pri-soft:#1e2130;
+           --visual:#818cf8; --listen:#22d3ee; }
   }
   *{box-sizing:border-box}
+  html,body{overflow-x:hidden}
   body{
     margin:0; background:var(--bg); color:var(--text);
     font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","Noto Sans TC","PingFang TC","Microsoft JhengHei",sans-serif;
-    -webkit-font-smoothing:antialiased;
+    -webkit-font-smoothing:antialiased; -webkit-text-size-adjust:100%;
   }
-  .app{max-width:1080px;margin:0 auto;padding:18px 16px 60px}
-  .topbar{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:14px}
-  .brand{font-size:21px;font-weight:800;letter-spacing:.5px}
-  .hstats{display:flex;gap:8px;flex-wrap:wrap;font-size:12px}
-  .hstat{background:var(--panel);border:1px solid var(--line);border-radius:999px;padding:5px 12px;color:var(--muted)}
+  .app{max-width:1080px;margin:0 auto;padding:16px 14px 70px;padding-left:max(14px,env(safe-area-inset-left));padding-right:max(14px,env(safe-area-inset-right))}
+
+  /* ---- 頂欄 ---- */
+  .topbar{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:12px}
+  .brand{font-size:20px;font-weight:800;letter-spacing:.3px;display:flex;align-items:center;gap:6px}
+  .hstats{display:flex;gap:6px;flex-wrap:wrap;font-size:12px}
+  .hstat{background:var(--panel);border:1px solid var(--line);border-radius:999px;padding:4px 11px;color:var(--muted);white-space:nowrap}
   .hstat b{color:var(--text);font-size:13px}
-  .tabs{display:flex;gap:4px;flex-wrap:wrap;margin-bottom:16px;background:var(--panel);
-        padding:5px;border-radius:999px;border:1px solid var(--line);width:fit-content;max-width:100%}
-  .tabs button{border:0;background:transparent;padding:9px 15px;border-radius:999px;cursor:pointer;
-        font-size:14px;color:var(--muted);font-weight:600;transition:.18s;white-space:nowrap}
+
+  /* ---- 分頁 ---- */
+  .tabs-wrap{position:relative;margin-bottom:14px}
+  .tabs{display:flex;gap:4px;background:var(--panel);padding:5px;border-radius:999px;
+        border:1px solid var(--line);overflow-x:auto;scrollbar-width:none;-webkit-overflow-scrolling:touch}
+  .tabs::-webkit-scrollbar{display:none}
+  .tabs button{border:0;background:transparent;padding:9px 14px;border-radius:999px;cursor:pointer;
+        font-size:14px;color:var(--muted);font-weight:600;transition:.18s;white-space:nowrap;flex-shrink:0;font-family:inherit}
   .tabs button:hover{color:var(--text)}
   .tabs button.active{background:var(--pri);color:#fff}
-  .panel{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);padding:18px}
+
+  /* ---- 通用 ---- */
+  .panel{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);padding:16px}
   .muted{color:var(--muted)}
   .input{background:var(--bg);border:1px solid var(--line);color:var(--text);border-radius:10px;
-         padding:9px 12px;font-size:14px;font-family:inherit;outline:none}
+         padding:9px 12px;font-size:14px;font-family:inherit;outline:none;max-width:100%}
   .input:focus{border-color:var(--pri)}
   select.input{cursor:pointer}
   .btn{border:1px solid var(--line);background:var(--panel);color:var(--text);border-radius:11px;
-       padding:10px 18px;font-size:14px;font-weight:700;cursor:pointer;font-family:inherit;transition:.15s}
+       padding:10px 16px;font-size:14px;font-weight:700;cursor:pointer;font-family:inherit;transition:.15s;
+       white-space:nowrap;touch-action:manipulation}
   .btn:hover{transform:translateY(-1px)}
+  .btn:active{transform:translateY(0)}
   .btn.primary{background:var(--pri);border-color:var(--pri);color:#fff}
   .btn.ghost{background:transparent}
-  .btn.big{padding:13px 34px;font-size:16px;border-radius:13px;margin-top:8px}
-  .toolbar{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:16px}
-  .grow{flex:1;min-width:180px}
-  .empty{text-align:center;padding:60px 20px;color:var(--muted);font-size:15px}
-  .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:14px}
-  .cardbox{display:flex;flex-direction:column;gap:8px}
-  .fcard{perspective:1000px;height:132px;cursor:pointer}
+  .btn.big{padding:14px 34px;font-size:16px;border-radius:13px;margin-top:8px;width:100%;max-width:340px}
+  .btn:disabled{opacity:.5;cursor:not-allowed;transform:none}
+  .toolbar{display:flex;gap:9px;flex-wrap:wrap;align-items:center;margin-bottom:14px}
+  .grow{flex:1;min-width:160px}
+  .empty{text-align:center;padding:50px 20px;color:var(--muted);font-size:15px}
+
+  /* ---- 字卡瀏覽 ---- */
+  .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:13px}
+  .cardbox{display:flex;flex-direction:column;gap:7px}
+  .fcard{perspective:1000px;height:130px;cursor:pointer}
   .fcard-flip{position:relative;width:100%;height:100%;transform-style:preserve-3d;transition:transform .45s cubic-bezier(.4,.2,.2,1)}
   .fcard.flipped .fcard-flip{transform:rotateY(180deg)}
   .fc-front,.fc-back{position:absolute;inset:0;backface-visibility:hidden;-webkit-backface-visibility:hidden;
     background:var(--panel);border:1px solid var(--line);border-radius:14px;display:flex;flex-direction:column;
-    align-items:center;justify-content:center;padding:14px;text-align:center;overflow:auto}
+    align-items:center;justify-content:center;padding:13px;text-align:center;overflow:auto}
   .fc-back{transform:rotateY(180deg);background:var(--pri-soft);border-color:transparent}
   .fc-text{font-weight:700;font-size:16px;line-height:1.35;word-break:break-word}
   .fc-back .fc-text{color:var(--pri)}
@@ -63,64 +80,144 @@
   .tag{font-size:11px;font-weight:700;padding:3px 9px;border-radius:999px;background:var(--bg);color:var(--muted)}
   .fc-actions{display:flex;gap:4px}
   .icon-btn{border:1px solid var(--line);background:var(--panel);border-radius:9px;width:30px;height:30px;
-    cursor:pointer;font-size:14px;line-height:1;display:flex;align-items:center;justify-content:center;color:var(--text)}
+    cursor:pointer;font-size:14px;line-height:1;display:flex;align-items:center;justify-content:center;color:var(--text);flex-shrink:0}
   .icon-btn:hover{border-color:var(--pri)}
-  .setup h2{margin:0 0 6px;font-size:20px}
-  .setup-row{display:flex;gap:14px;flex-wrap:wrap;margin:18px 0 22px}
-  .setup-row label{display:flex;flex-direction:column;gap:6px;font-size:12px;font-weight:700;color:var(--muted)}
-  .studybar{display:flex;align-items:center;gap:12px;margin-bottom:16px}
+
+  /* ---- 學習頁 ---- */
+  .setup h2{margin:0 0 6px;font-size:19px}
+  .setup-row{display:flex;gap:12px;flex-wrap:wrap;margin:16px 0 20px}
+  .setup-row label{display:flex;flex-direction:column;gap:6px;font-size:12px;font-weight:700;color:var(--muted);flex:1;min-width:140px}
+  .studybar{display:flex;align-items:center;gap:10px;margin-bottom:14px}
   .bar{flex:1;height:8px;background:var(--line);border-radius:999px;overflow:hidden}
   .bar-fill{height:100%;background:var(--pri);border-radius:999px;transition:width .3s}
   .pill{font-size:13px;font-weight:700;color:var(--muted);white-space:nowrap}
-  .studycard{display:flex;flex-direction:column;align-items:center;gap:16px}
+  .studycard{display:flex;flex-direction:column;align-items:center;gap:14px}
   .flipwrap{width:100%;max-width:680px;height:320px;perspective:1500px;cursor:pointer}
   .flipper{position:relative;width:100%;height:100%;transform-style:preserve-3d;
     transition:transform .55s cubic-bezier(.4,.2,.2,1)}
   .flipwrap.flipped .flipper{transform:rotateY(180deg)}
   .face{position:absolute;inset:0;backface-visibility:hidden;-webkit-backface-visibility:hidden;
     border-radius:20px;border:1px solid var(--line);background:var(--panel);display:flex;flex-direction:column;
-    align-items:center;justify-content:center;gap:10px;padding:28px;text-align:center;overflow:auto;
+    align-items:center;justify-content:center;gap:10px;padding:24px;text-align:center;overflow:auto;
     box-shadow:0 10px 34px rgba(15,23,42,.07)}
   .face.back{transform:rotateY(180deg);background:linear-gradient(160deg,var(--pri-soft),var(--panel))}
-  .face-text{font-size:clamp(22px,4.2vw,40px);font-weight:800;line-height:1.3;word-break:break-word}
+  .face-text{font-size:clamp(20px,4.2vw,38px);font-weight:800;line-height:1.3;word-break:break-word}
   .face .note{font-size:13px;color:var(--muted)}
-  .bigspeak{font-size:56px;background:none;border:0;cursor:pointer;line-height:1;filter:drop-shadow(0 4px 10px rgba(79,70,229,.3))}
-  .grades{display:flex;gap:10px;flex-wrap:wrap;justify-content:center;margin-top:20px;
-    opacity:.3;pointer-events:none;transition:.2s}
+  .bigspeak{font-size:54px;background:none;border:0;cursor:pointer;line-height:1;filter:drop-shadow(0 4px 10px rgba(79,70,229,.3));touch-action:manipulation}
+  .grades{display:flex;gap:8px;flex-wrap:wrap;justify-content:center;margin-top:18px;
+    opacity:.3;pointer-events:none;transition:.2s;width:100%}
   .grades.show{opacity:1;pointer-events:auto}
-  .grade{border:2px solid var(--c);color:var(--c);background:var(--panel);border-radius:13px;
-    padding:10px 16px;font-weight:800;cursor:pointer;display:flex;flex-direction:column;align-items:center;
-    gap:2px;min-width:92px;font-size:14px;font-family:inherit;transition:.15s}
+  .grade{border:2px solid var(--c);color:var(--c);background:var(--panel);border-radius:12px;
+    padding:9px 12px;font-weight:800;cursor:pointer;display:flex;flex-direction:column;align-items:center;
+    gap:2px;min-width:76px;font-size:13px;font-family:inherit;transition:.15s;touch-action:manipulation}
   .grade b{font-size:10px;opacity:.55;font-weight:700}
   .grade:hover{background:var(--c);color:#fff}
-  .hint{text-align:center;font-size:12px;color:var(--muted);margin-top:18px}
-  .kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(118px,1fr));gap:12px;margin:0 0 16px}
-  .kpi{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:16px 10px;text-align:center}
-  .kpi-v{font-size:26px;font-weight:800;color:var(--pri);line-height:1.1}
+  .hint{text-align:center;font-size:12px;color:var(--muted);margin-top:16px}
+
+  /* ---- 統計 ---- */
+  .modeSwitch{display:flex;gap:5px;background:var(--panel);padding:5px;border-radius:999px;
+    border:1px solid var(--line);margin-bottom:14px;overflow-x:auto;scrollbar-width:none}
+  .modeSwitch::-webkit-scrollbar{display:none}
+  .modeSwitch button{border:0;background:transparent;padding:8px 16px;border-radius:999px;cursor:pointer;
+    font-size:13px;font-weight:700;color:var(--muted);white-space:nowrap;flex-shrink:0;font-family:inherit;transition:.15s}
+  .modeSwitch button.active{color:#fff}
+  .modeSwitch button.active[data-m="all"]{background:var(--pri)}
+  .modeSwitch button.active[data-m="visual"]{background:var(--visual)}
+  .modeSwitch button.active[data-m="listen"]{background:var(--listen)}
+
+  .kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(112px,1fr));gap:11px;margin:0 0 14px}
+  .kpi{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:14px 8px;text-align:center}
+  .kpi-v{font-size:25px;font-weight:800;color:var(--pri);line-height:1.1}
   .kpi-l{font-size:12px;color:var(--muted);margin-top:5px}
-  .panel h3{margin:0 0 14px;font-size:15px}
-  .lvrow{display:flex;align-items:center;gap:10px;margin-bottom:9px;font-size:13px}
-  .lvname{width:78px;font-weight:700;flex-shrink:0}
-  .lvbar{flex:1;height:20px;background:var(--bg);border-radius:6px;overflow:hidden}
+  .panel h3{margin:0 0 13px;font-size:15px}
+  .lvrow{display:flex;align-items:center;gap:9px;margin-bottom:8px;font-size:13px}
+  .lvname{width:72px;font-weight:700;flex-shrink:0;font-size:12px}
+  .lvbar{flex:1;height:18px;background:var(--bg);border-radius:6px;overflow:hidden;min-width:0}
   .lvfill{height:100%;border-radius:6px;transition:width .4s}
-  .lvnum{width:74px;text-align:right;color:var(--muted);font-size:12px;flex-shrink:0}
-  .chart{display:flex;align-items:flex-end;gap:6px;height:130px;padding-top:10px}
-  .cbar{flex:1;display:flex;flex-direction:column;align-items:center;gap:5px;height:100%;justify-content:flex-end}
-  .cbar-fill{width:100%;background:var(--pri);border-radius:5px 5px 0 0;min-height:3px;transition:height .4s;opacity:.85}
-  .cbar-lb{font-size:10px;color:var(--muted)}
-  .two{display:grid;grid-template-columns:1fr 1fr;gap:14px}
-  @media(max-width:720px){.two{grid-template-columns:1fr}}
-  .done{text-align:center;padding:44px 20px}
-  .done-emoji{font-size:56px}
+  .lvnum{text-align:right;color:var(--muted);font-size:11px;flex-shrink:0;white-space:nowrap}
+  .chart{display:flex;align-items:flex-end;gap:4px;height:120px;padding-top:8px}
+  .cbar{flex:1;display:flex;flex-direction:column;align-items:center;gap:4px;height:100%;justify-content:flex-end;min-width:0}
+  .cbar-fill{width:100%;border-radius:5px 5px 0 0;min-height:3px;transition:height .4s;opacity:.85}
+  .cbar-lb{font-size:10px;color:var(--muted);white-space:nowrap}
+  .two{display:grid;grid-template-columns:1fr 1fr;gap:13px}
+
+  /* 對比表 */
+  .cmp{display:grid;grid-template-columns:1.4fr 1fr 1fr;gap:0;font-size:13px}
+  .cmp > div{padding:9px 6px;border-bottom:1px solid var(--line)}
+  .cmp .h{font-weight:800;font-size:12px;color:var(--muted);border-bottom:2px solid var(--line)}
+  .cmp .h.visual{color:var(--visual)}
+  .cmp .h.listen{color:var(--listen)}
+  .cmp .v{text-align:center;font-weight:800}
+  .cmp .v.visual{color:var(--visual)}
+  .cmp .v.listen{color:var(--listen)}
+  .cmp .last{border-bottom:0}
+
+  .done{text-align:center;padding:40px 20px}
+  .done-emoji{font-size:54px}
   .done h2{margin:8px 0 4px}
-  .done-actions{display:flex;gap:10px;justify-content:center;flex-wrap:wrap;margin-top:10px}
-  .setrow{display:flex;justify-content:space-between;align-items:center;gap:14px;padding:13px 0;border-bottom:1px solid var(--line);flex-wrap:wrap}
+  .done-actions{display:flex;gap:10px;justify-content:center;flex-wrap:wrap;margin-top:12px}
+
+  /* 設定 */
+  .setrow{display:flex;justify-content:space-between;align-items:center;gap:14px;padding:13px 0;
+    border-bottom:1px solid var(--line);flex-wrap:wrap}
   .setrow:last-child{border-bottom:0}
-  .setrow .lbl{font-size:14px;font-weight:700}
-  .setrow .sub{font-size:12px;color:var(--muted);margin-top:3px;font-weight:400}
+  .setrow .lbl{font-size:14px;font-weight:700;flex:1;min-width:180px}
+  .setrow .sub{font-size:12px;color:var(--muted);margin-top:3px;font-weight:400;line-height:1.5}
+
+  /* 表格滾動 */
+  .tableWrap{overflow-x:auto;-webkit-overflow-scrolling:touch;margin:0 -4px;padding:0 4px}
+  table{width:100%;border-collapse:collapse;font-size:13px;min-width:520px}
+  thead tr{text-align:left;color:var(--muted)}
+
   .toast{position:fixed;left:50%;bottom:30px;transform:translateX(-50%);background:#111827;color:#fff;
-    padding:11px 20px;border-radius:999px;font-size:14px;z-index:999;animation:pop .25s;font-weight:600}
+    padding:11px 20px;border-radius:999px;font-size:14px;z-index:999;animation:pop .25s;font-weight:600;
+    max-width:90vw;text-align:center}
   @keyframes pop{from{opacity:0;transform:translate(-50%,12px)}}
+
+  .spin{display:inline-block;animation:rot 1s linear infinite}
+  @keyframes rot{to{transform:rotate(360deg)}}
+
+  /* ================= 響應式 ================= */
+  @media (max-width: 720px){
+    .two{grid-template-columns:1fr}
+  }
+  @media (max-width: 560px){
+    .app{padding:12px 10px 80px}
+    .brand{font-size:17px}
+    .hstats{font-size:11px;gap:5px}
+    .hstat{padding:3px 9px}
+    .tabs button{padding:8px 12px;font-size:13px}
+    .panel{padding:14px;border-radius:14px}
+    .grid{grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:10px}
+    .fcard{height:112px}
+    .fc-text{font-size:14px}
+    .fc-note{font-size:10px}
+    .flipwrap{height:250px}
+    .face{padding:18px;border-radius:16px}
+    .bigspeak{font-size:46px}
+    .grades{gap:6px}
+    .grade{min-width:0;flex:1 1 calc(33% - 6px);padding:8px 6px;font-size:12px}
+    .grade b{font-size:9px}
+    .kpis{grid-template-columns:repeat(2,1fr);gap:9px}
+    .kpi{padding:12px 6px}
+    .kpi-v{font-size:22px}
+    .kpi-l{font-size:11px}
+    .lvname{width:60px;font-size:11px}
+    .lvnum{font-size:10px}
+    .chart{height:100px;gap:3px}
+    .cbar-lb{font-size:9px}
+    .toolbar{gap:8px}
+    .toolbar .input{width:100%;flex:1 1 100%}
+    .setup-row label{min-width:100%}
+    .btn.big{max-width:100%}
+    .cmp{font-size:12px}
+    .cmp > div{padding:8px 4px}
+    .modeSwitch button{padding:7px 13px;font-size:12px}
+  }
+  @media (max-width: 360px){
+    .grade{flex:1 1 calc(50% - 6px)}
+    .brand{font-size:16px}
+  }
 </style>
 </head>
 <body>
@@ -129,13 +226,15 @@
     <div class="brand">🧠 字卡記憶</div>
     <div class="hstats" id="hstats"></div>
   </div>
-  <nav class="tabs" id="tabs">
-    <button data-tab="browse" class="active">📖 字卡瀏覽</button>
-    <button data-tab="visual">🔄 視覺翻卡</button>
-    <button data-tab="listen">🎧 聽力翻卡</button>
-    <button data-tab="stats">📊 統計</button>
-    <button data-tab="settings">⚙️ 設定</button>
-  </nav>
+  <div class="tabs-wrap">
+    <nav class="tabs" id="tabs">
+      <button data-tab="browse" class="active">📖 字卡瀏覽</button>
+      <button data-tab="visual">🔄 視覺翻卡</button>
+      <button data-tab="listen">🎧 聽力翻卡</button>
+      <button data-tab="stats">📊 統計</button>
+      <button data-tab="settings">⚙️ 設定</button>
+    </nav>
+  </div>
   <main id="view"></main>
 </div>
 
@@ -143,7 +242,7 @@
 /* =========================================================
    1. 常數與工具
    ========================================================= */
-const STORAGE_KEY = 'flashcard-master-v2';
+const STORAGE_KEY = 'flashcard-master-v3';
 
 const LEVELS = [
   { lv:1, name:'不記得',   color:'#dc2626', days:0  },
@@ -153,6 +252,11 @@ const LEVELS = [
   { lv:5, name:'精熟',     color:'#2563eb', days:10 },
 ];
 const LV_MAP = Object.fromEntries(LEVELS.map(l => [l.lv, l]));
+
+const MODE_META = {
+  visual: { name:'視覺', color:'var(--visual)', icon:'🔄' },
+  listen: { name:'聽力', color:'var(--listen)', icon:'🎧' },
+};
 
 const FRONT_KEYS = ['正面','front','單字','单词','word','問題','问题','question','題目','题目',
                     '詞','词','英文','日文','原文','term','單詞'];
@@ -182,7 +286,6 @@ function parseDate(v){
   if (v == null || v === '') return 0;
   if (v instanceof Date) return v.getTime();
   if (typeof v === 'number'){
-    // Excel 序列日期（1900 制）
     if (v > 20000 && v < 90000) return Math.round((v - 25569) * 86400 * 1000);
     return v;
   }
@@ -200,9 +303,9 @@ function parseLevel(v){
 function toast(msg){
   const t = document.createElement('div');
   t.className = 'toast';
-  t.textContent = msg;
+  t.innerHTML = msg;
   document.body.appendChild(t);
-  setTimeout(() => t.remove(), 1800);
+  setTimeout(() => t.remove(), 2200);
 }
 
 /* =========================================================
@@ -213,7 +316,10 @@ function defaultStore(){
     cards: [],
     progress: {},
     logs: [],
-    settings: { lang:'en-US', rate:0.9, autoSpeak:true, showFrontInListen:false },
+    settings: {
+      lang:'en-US', rate:0.9, autoSpeak:true, showFrontInListen:false,
+      cloudUrl:'', autoSync:true, lastSync:0,
+    },
     ui: { q:'', deck:'all', level:'all' },
     created: Date.now(),
   };
@@ -338,6 +444,7 @@ function buildQueue(opts){
    ========================================================= */
 let currentTab = 'browse';
 let session = null;
+let statsMode = 'all';   // all | visual | listen
 
 function updateHeader(){
   const total  = store.cards.length;
@@ -394,7 +501,7 @@ function renderBrowse(){
             return `<option value="${n}" ${store.ui.level === String(n) ? 'selected' : ''}>${l.name}</option>`;
           }).join('')}
         </select>
-        <span class="muted" id="cnt"></span>
+        <span class="muted" id="cnt" style="font-size:13px"></span>
       </div>
       <div id="grid" class="grid"></div>
     </div>`;
@@ -414,7 +521,7 @@ function renderGrid(){
 
   if (!list.length){
     grid.innerHTML = `<div class="empty" style="grid-column:1/-1">
-      ${store.cards.length ? '沒有符合條件的卡片 🔍' : '還沒有卡片，去「⚙️ 設定」匯入 Excel 吧！'}
+      ${store.cards.length ? '沒有符合條件的卡片 🔍' : '還沒有卡片，去「⚙️ 設定」匯入或同步吧！'}
     </div>`;
     return;
   }
@@ -478,11 +585,12 @@ function renderStudyUI(mode){
 
 function drawSetup(mode){
   const isListen = mode === 'listen';
+  const M = MODE_META[mode];
   const decks = [...new Set(store.cards.map(c => c.deck || '預設'))];
   $('#view').innerHTML = `
     <div class="panel setup">
-      <h2>${isListen ? '🎧 聽力翻卡' : '🔄 視覺翻卡'}</h2>
-      <p class="muted" style="margin:0">
+      <h2>${M.icon} ${M.name}翻卡</h2>
+      <p class="muted" style="margin:0;font-size:13px">
         ${isListen
           ? '先聽發音 → 腦中回想答案 → 翻卡核對 → 自我評價'
           : '看正面 → 腦中回想答案 → 翻卡核對 → 自我評價'}
@@ -512,7 +620,7 @@ function drawSetup(mode){
         </label>
       </div>
       <button class="btn primary big" id="startBtn">開始學習</button>
-      ${store.cards.length ? '' : '<p class="muted" style="margin-top:16px">⚠️ 目前沒有卡片，請先到「⚙️ 設定」匯入 Excel。</p>'}
+      ${store.cards.length ? '' : '<p class="muted" style="margin-top:16px;font-size:13px">⚠️ 目前沒有卡片，請先到「⚙️ 設定」匯入或同步。</p>'}
     </div>`;
 
   $('#startBtn').onclick = () => {
@@ -552,7 +660,7 @@ function drawCard(mode){
 
   $('#view').innerHTML = `
     <div class="studybar">
-      <button class="btn ghost" id="quitBtn">✕ 結束</button>
+      <button class="btn ghost" id="quitBtn">✕</button>
       <div class="bar"><div class="bar-fill" style="width:${(s.idx / s.total * 100).toFixed(1)}%"></div></div>
       <div class="pill">${s.idx + 1} / ${s.total}</div>
     </div>
@@ -639,11 +747,12 @@ function doGrade(lv){
 function drawDone(mode){
   const s = session;
   const acc = s && s.done ? Math.round(s.ok / s.done * 100) : 0;
+  const M = MODE_META[mode];
   $('#view').innerHTML = `
     <div class="panel done">
       <div class="done-emoji">🎉</div>
       <h2>本輪完成！</h2>
-      <p class="muted" style="margin:0">${mode === 'listen' ? '聽力翻卡' : '視覺翻卡'}</p>
+      <p class="muted" style="margin:0;font-size:13px">${M.icon} ${M.name}翻卡</p>
       <div class="kpis" style="max-width:420px;margin:22px auto 6px">
         <div class="kpi"><div class="kpi-v">${s ? s.done : 0}</div><div class="kpi-l">複習張數</div></div>
         <div class="kpi"><div class="kpi-v">${acc}%</div><div class="kpi-l">記得率</div></div>
@@ -657,34 +766,70 @@ function drawDone(mode){
 
   $('#againBtn').onclick = () => { const m = session ? session.mode : mode; session = null; renderStudyUI(m); };
   $('#backBtn').onclick  = () => { session = null; drawSetup(mode); };
-  $('#toStats').onclick  = () => { session = null; currentTab = 'stats'; render(); };
+  $('#toStats').onclick  = () => { session = null; statsMode = mode; currentTab = 'stats'; render(); };
 }
 
 /* =========================================================
-   9. 統計
+   9. 統計（拆分視覺 / 聽力）
    ========================================================= */
+function logsByMode(mode){
+  if (mode === 'all') return store.logs;
+  return store.logs.filter(l => l.mode === mode);
+}
+function calcStats(logs){
+  const total = logs.length;
+  const ok = logs.filter(l => l.lv >= 3).length;
+  const today = dateKey();
+  const tLogs = logs.filter(l => dateKey(new Date(l.t)) === today);
+  const tOk = tLogs.filter(l => l.lv >= 3).length;
+  return {
+    total,
+    acc: total ? Math.round(ok / total * 100) : 0,
+    today: tLogs.length,
+    todayAcc: tLogs.length ? Math.round(tOk / tLogs.length * 100) : 0,
+  };
+}
+
 function renderStats(){
   const total   = store.cards.length;
   const learned = store.cards.filter(c => store.progress[c.id]).length;
   const due     = store.cards.filter(c => isDue(c.id)).length;
 
-  const today     = dateKey();
-  const todayLogs = store.logs.filter(l => dateKey(new Date(l.t)) === today);
-  const todayOk   = todayLogs.filter(l => l.lv >= 3).length;
-  const todayAcc  = todayLogs.length ? Math.round(todayOk / todayLogs.length * 100) : 0;
-
   const counts = { 0:0, 1:0, 2:0, 3:0, 4:0, 5:0 };
   store.cards.forEach(c => { counts[getLevel(c.id)]++; });
 
+  const masteryRate = total ? Math.round((counts[5] + counts[4]) / total * 100) : 0;
+
+  // 依當前 mode 過濾的統計
+  const modeLogs = logsByMode(statsMode);
+  const S = calcStats(modeLogs);
+
+  // 視覺 / 聽力 對比（永遠顯示）
+  const cmpV = calcStats(logsByMode('visual'));
+  const cmpL = calcStats(logsByMode('listen'));
+
+  // 近 14 天（依 mode）
   const days = [];
   for (let i = 13; i >= 0; i--){
     const d = new Date(); d.setDate(d.getDate() - i);
     const k = dateKey(d);
-    const n = store.logs.filter(l => dateKey(new Date(l.t)) === k).length;
+    const n = modeLogs.filter(l => dateKey(new Date(l.t)) === k).length;
     days.push({ n, label: `${d.getMonth() + 1}/${d.getDate()}` });
   }
   const maxDay = Math.max(1, ...days.map(d => d.n));
 
+  // 近 14 天視覺 vs 聽力 疊圖
+  const stackDays = [];
+  for (let i = 13; i >= 0; i--){
+    const d = new Date(); d.setDate(d.getDate() - i);
+    const k = dateKey(d);
+    const v = store.logs.filter(l => l.mode === 'visual' && dateKey(new Date(l.t)) === k).length;
+    const li = store.logs.filter(l => l.mode === 'listen' && dateKey(new Date(l.t)) === k).length;
+    stackDays.push({ v, l: li, label: `${d.getMonth()+1}/${d.getDate()}` });
+  }
+  const maxStack = Math.max(1, ...stackDays.map(d => d.v + d.l));
+
+  // 未來 7 天到期（卡片維度，不分 mode）
   const future = [];
   for (let i = 0; i < 7; i++){
     const start = new Date(); start.setHours(0,0,0,0); start.setDate(start.getDate() + i);
@@ -698,6 +843,7 @@ function renderStats(){
   }
   const maxFut = Math.max(1, ...future.map(f => f.n));
 
+  // 牌組統計
   const deckMap = {};
   store.cards.forEach(c => {
     const d = c.deck || '預設';
@@ -708,20 +854,51 @@ function renderStats(){
     if (lv === 5) deckMap[d].mastered++;
   });
 
-  const masteryRate = total ? Math.round((counts[5] + counts[4]) / total * 100) : 0;
+  const modeLabel = statsMode === 'all' ? '全部模式' : `${MODE_META[statsMode].icon} ${MODE_META[statsMode].name}`;
 
   $('#view').innerHTML = `
+    <div class="modeSwitch" id="modeSwitch">
+      <button data-m="all"    class="${statsMode==='all'   ?'active':''}">📊 全部模式</button>
+      <button data-m="visual" class="${statsMode==='visual'?'active':''}">🔄 視覺翻卡</button>
+      <button data-m="listen" class="${statsMode==='listen'?'active':''}">🎧 聽力翻卡</button>
+    </div>
+
     <div class="kpis">
       <div class="kpi"><div class="kpi-v">${total}</div><div class="kpi-l">總卡片</div></div>
       <div class="kpi"><div class="kpi-v">${learned}</div><div class="kpi-l">已學習</div></div>
       <div class="kpi"><div class="kpi-v">${due}</div><div class="kpi-l">待複習</div></div>
-      <div class="kpi"><div class="kpi-v">${todayLogs.length}</div><div class="kpi-l">今日複習</div></div>
-      <div class="kpi"><div class="kpi-v">${todayAcc}%</div><div class="kpi-l">今日記得率</div></div>
+      <div class="kpi"><div class="kpi-v">${S.today}</div><div class="kpi-l">今日複習</div></div>
+      <div class="kpi"><div class="kpi-v">${S.todayAcc}%</div><div class="kpi-l">今日記得率</div></div>
       <div class="kpi"><div class="kpi-v">${masteryRate}%</div><div class="kpi-l">精熟+熟 佔比</div></div>
     </div>
 
-    <div class="panel" style="margin-bottom:14px">
-      <h3>📊 等級分布</h3>
+    <div class="panel" style="margin-bottom:13px">
+      <h3>⚖️ 視覺 vs 聽力 累計對比</h3>
+      <div class="cmp">
+        <div class="h"></div>
+        <div class="h visual">🔄 視覺</div>
+        <div class="h listen">🎧 聽力</div>
+
+        <div>累計複習次數</div>
+        <div class="v visual">${cmpV.total}</div>
+        <div class="v listen">${cmpL.total}</div>
+
+        <div>累計記得率</div>
+        <div class="v visual">${cmpV.total ? cmpV.acc + '%' : '—'}</div>
+        <div class="v listen">${cmpL.total ? cmpL.acc + '%' : '—'}</div>
+
+        <div>今日複習次數</div>
+        <div class="v visual">${cmpV.today}</div>
+        <div class="v listen">${cmpL.today}</div>
+
+        <div class="last">今日記得率</div>
+        <div class="v visual last">${cmpV.today ? cmpV.todayAcc + '%' : '—'}</div>
+        <div class="v listen last">${cmpL.today ? cmpL.todayAcc + '%' : '—'}</div>
+      </div>
+    </div>
+
+    <div class="panel" style="margin-bottom:13px">
+      <h3>📊 等級分布（卡片）</h3>
       ${[5,4,3,2,1,0].map(lv => {
         const L = lv ? LV_MAP[lv] : { name:'未學習', color:'#94a3b8' };
         const n = counts[lv];
@@ -734,36 +911,57 @@ function renderStats(){
       }).join('')}
     </div>
 
-    <div class="two" style="margin-bottom:14px">
+    <div class="two" style="margin-bottom:13px">
       <div class="panel">
-        <h3>📅 近 14 天複習量</h3>
+        <h3>📅 近 14 天複習量 · ${modeLabel}</h3>
         <div class="chart">
           ${days.map(d => `
             <div class="cbar" title="${d.label}：${d.n} 次">
-              <div class="cbar-fill" style="height:${(d.n / maxDay * 100).toFixed(1)}%"></div>
+              <div class="cbar-fill" style="height:${(d.n / maxDay * 100).toFixed(1)}%;background:${statsMode==='listen'?'var(--listen)':statsMode==='visual'?'var(--visual)':'var(--pri)'}"></div>
               <div class="cbar-lb">${d.label.split('/')[1]}</div>
             </div>`).join('')}
         </div>
       </div>
       <div class="panel">
-        <h3>⏰ 未來 7 天到期</h3>
+        <h3>📅 視覺 / 聽力 疊圖</h3>
         <div class="chart">
-          ${future.map(d => `
-            <div class="cbar" title="${d.label}：${d.n} 張">
-              <div class="cbar-fill" style="height:${(d.n / maxFut * 100).toFixed(1)}%;background:#f59e0b"></div>
-              <div class="cbar-lb">${d.label}</div>
-            </div>`).join('')}
+          ${stackDays.map(d => {
+            const totalH = (d.v + d.l) / maxStack * 100;
+            const vH = (d.v + d.l) ? (d.v / (d.v + d.l)) * 100 : 0;
+            return `<div class="cbar" title="${d.label}｜視覺 ${d.v} · 聽力 ${d.l}">
+              <div style="width:100%;height:${totalH.toFixed(1)}%;display:flex;flex-direction:column;justify-content:flex-end;border-radius:5px 5px 0 0;overflow:hidden;min-height:3px">
+                <div style="height:${(100-vH).toFixed(1)}%;background:var(--listen)"></div>
+                <div style="height:${vH.toFixed(1)}%;background:var(--visual)"></div>
+              </div>
+              <div class="cbar-lb">${d.label.split('/')[1]}</div>
+            </div>`;
+          }).join('')}
+        </div>
+        <div style="display:flex;gap:14px;justify-content:center;margin-top:8px;font-size:11px;color:var(--muted)">
+          <span><span style="display:inline-block;width:9px;height:9px;background:var(--visual);border-radius:2px;margin-right:4px"></span>視覺</span>
+          <span><span style="display:inline-block;width:9px;height:9px;background:var(--listen);border-radius:2px;margin-right:4px"></span>聽力</span>
         </div>
       </div>
     </div>
 
-    <div class="panel">
+    <div class="panel" style="margin-bottom:13px">
+      <h3>⏰ 未來 7 天到期（卡片）</h3>
+      <div class="chart">
+        ${future.map(d => `
+          <div class="cbar" title="${d.label}：${d.n} 張">
+            <div class="cbar-fill" style="height:${(d.n / maxFut * 100).toFixed(1)}%;background:#f59e0b"></div>
+            <div class="cbar-lb">${d.label}</div>
+          </div>`).join('')}
+      </div>
+    </div>
+
+    <div class="panel" style="margin-bottom:13px">
       <h3>🗂 牌組統計</h3>
       ${Object.keys(deckMap).length ? `
-      <div style="overflow-x:auto">
-        <table style="width:100%;border-collapse:collapse;font-size:13px">
+      <div class="tableWrap">
+        <table>
           <thead>
-            <tr style="text-align:left;color:var(--muted)">
+            <tr>
               <th style="padding:8px 6px">牌組</th>
               <th style="padding:8px 6px">總數</th>
               <th style="padding:8px 6px">已學習</th>
@@ -778,7 +976,7 @@ function renderStats(){
                 <td style="padding:9px 6px">${v.total}</td>
                 <td style="padding:9px 6px">${v.learned}</td>
                 <td style="padding:9px 6px">${v.mastered}</td>
-                <td style="padding:9px 6px">
+                <td style="padding:9px 6px;min-width:100px">
                   <div class="lvbar" style="height:8px">
                     <div class="lvfill" style="width:${(v.mastered / v.total * 100).toFixed(1)}%;background:var(--pri)"></div>
                   </div>
@@ -786,29 +984,66 @@ function renderStats(){
               </tr>`).join('')}
           </tbody>
         </table>
-      </div>` : '<p class="muted">尚無資料</p>'}
+      </div>` : '<p class="muted" style="font-size:13px">尚無資料</p>'}
     </div>
   `;
+
+  // 模式切換
+  $('#modeSwitch').onclick = e => {
+    const b = e.target.closest('button[data-m]');
+    if (!b) return;
+    statsMode = b.dataset.m;
+    renderStats();
+  };
 }
 
 /* =========================================================
    10. 設定
    ========================================================= */
 function renderSettings(){
+  const hasCloud = !!store.settings.cloudUrl;
   $('#view').innerHTML = `
-    <div class="panel" style="margin-bottom:14px">
+    <div class="panel" style="margin-bottom:13px">
+      <h3>☁️ 雲端卡片庫（Google Sheets）</h3>
+      <div class="setrow">
+        <div class="lbl">
+          卡片庫網址
+          <div class="sub">在 Google Sheets 發布成 CSV 後的連結。開啟程式時會自動抓取最新卡片。</div>
+        </div>
+      </div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:6px">
+        <input id="cloudUrl" class="input grow" placeholder="https://docs.google.com/spreadsheets/d/e/…/pub?output=csv"
+               value="${esc(store.settings.cloudUrl)}" />
+        <button class="btn primary" id="saveCloud">儲存</button>
+        <button class="btn ghost" id="syncNow" ${hasCloud ? '' : 'disabled'}>立即同步</button>
+      </div>
+      <div class="setrow" style="margin-top:12px">
+        <div class="lbl">
+          開啟時自動同步
+          <div class="sub">每次打開程式自動抓取雲端最新卡片</div>
+        </div>
+        <input type="checkbox" id="autoSync" ${store.settings.autoSync ? 'checked' : ''}
+               style="width:20px;height:20px;cursor:pointer" />
+      </div>
+      <div class="setrow" style="border-bottom:0">
+        <div class="sub" style="font-size:12px;line-height:1.6">
+          最後同步：${store.settings.lastSync ? formatDate(store.settings.lastSync) : '尚未同步'}<br>
+          📌 雲端只提供「卡片內容」。學習進度、統計紀錄仍存在此瀏覽器，不會上傳。
+        </div>
+      </div>
+    </div>
+
+    <div class="panel" style="margin-bottom:13px">
       <h3>📥 匯入 / 匯出 Excel</h3>
       <div class="setrow">
-        <div>
-          <div class="lbl">下載備份（Excel）</div>
-          <div class="sub">包含卡片、學習進度、統計紀錄三個工作表，下次可原檔匯回</div>
+        <div class="lbl">下載備份（Excel）
+          <div class="sub">含卡片、進度、統計紀錄三個工作表，下次可原檔匯回</div>
         </div>
-        <button class="btn primary" id="expXlsx">⬇️ 匯出 Excel</button>
+        <button class="btn primary" id="expXlsx">⬇️ 匯出</button>
       </div>
       <div class="setrow">
-        <div>
-          <div class="lbl">上傳 Excel</div>
-          <div class="sub">支援 .xlsx / .xls / .csv。若為本程式匯出的備份，會完整還原進度與統計</div>
+        <div class="lbl">上傳 Excel
+          <div class="sub">支援 .xlsx / .xls / .csv。備份檔會完整還原進度與統計</div>
         </div>
         <div style="display:flex;gap:8px;flex-wrap:wrap">
           <button class="btn ghost" id="tplBtn">下載範本</button>
@@ -818,7 +1053,7 @@ function renderSettings(){
       <input type="file" id="fileInput" accept=".xlsx,.xls,.csv" style="display:none" />
     </div>
 
-    <div class="panel" style="margin-bottom:14px">
+    <div class="panel" style="margin-bottom:13px">
       <h3>🔊 語音設定</h3>
       <div class="setrow">
         <div class="lbl">預設語言<div class="sub">非中文內容將使用此語言發音</div></div>
@@ -833,10 +1068,10 @@ function renderSettings(){
       <div class="setrow">
         <div class="lbl">語速 <span class="muted" id="rateVal">${store.settings.rate}</span></div>
         <input type="range" id="setRate" min="0.5" max="1.5" step="0.05"
-               value="${store.settings.rate}" style="width:220px" />
+               value="${store.settings.rate}" style="width:200px;max-width:100%" />
       </div>
       <div class="setrow">
-        <div class="lbl">聽力模式顯示正面文字<div class="sub">關閉＝純聽力挑戰（預設關閉）</div></div>
+        <div class="lbl">聽力模式顯示正面文字<div class="sub">關閉＝純聽力挑戰</div></div>
         <input type="checkbox" id="setHint" ${store.settings.showFrontInListen ? 'checked' : ''}
                style="width:20px;height:20px;cursor:pointer" />
       </div>
@@ -859,6 +1094,18 @@ function renderSettings(){
     </div>
   `;
 
+  // 雲端
+  $('#saveCloud').onclick = () => {
+    const v = $('#cloudUrl').value.trim();
+    store.settings.cloudUrl = v;
+    save();
+    toast(v ? '已儲存，可立即同步' : '已清除雲端網址');
+    renderSettings();
+  };
+  $('#syncNow').onclick = () => syncFromCloud(false);
+  $('#autoSync').onchange = e => { store.settings.autoSync = e.target.checked; save(); };
+
+  // Excel
   $('#expXlsx').onclick = exportExcel;
   $('#impBtn').onclick  = () => $('#fileInput').click();
   $('#fileInput').onchange = e => {
@@ -868,6 +1115,7 @@ function renderSettings(){
   };
   $('#tplBtn').onclick = downloadTemplate;
 
+  // 語音
   $('#setLang').onchange = e => { store.settings.lang = e.target.value; save(); };
   $('#setRate').oninput = e => {
     store.settings.rate = Number(e.target.value);
@@ -877,6 +1125,7 @@ function renderSettings(){
   $('#setHint').onchange = e => { store.settings.showFrontInListen = e.target.checked; save(); };
   $('#testSpeak').onclick = () => speak('Hello, 你好');
 
+  // 危險
   $('#resetProgress').onclick = () => {
     if (!confirm('確定重置所有學習進度嗎？此動作無法復原。')) return;
     store.progress = {}; store.logs = [];
@@ -891,29 +1140,97 @@ function renderSettings(){
 }
 
 /* =========================================================
-   11. Excel 匯出 / 匯入
+   11. 雲端同步（Google Sheets → 本機）
    ========================================================= */
+async function syncFromCloud(silent){
+  const url = store.settings.cloudUrl;
+  if (!url){ if (!silent) toast('尚未設定雲端網址'); return; }
 
-/* ---------- 匯出 ---------- */
+  if (!silent) toast('☁️ 同步中…');
+  try {
+    const sep = url.includes('?') ? '&' : '?';
+    const res = await fetch(url + sep + '_=' + Date.now(), { cache:'no-store' });
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    const text = await res.text();
+
+    const wb = XLSX.read(text, { type:'string' });
+    const ws = wb.Sheets[wb.SheetNames[0]];
+    const rows = XLSX.utils.sheet_to_json(ws, { header:1, blankrows:false, defval:'' });
+    if (rows.length < 2) throw new Error('雲端沒有資料列');
+
+    const head = rows[0].map(x => String(x).trim());
+    const findIdx = (keys) => head.findIndex(h => {
+      const s = h.toLowerCase();
+      return keys.some(k => s.includes(k.toLowerCase()));
+    });
+    const idx = {
+      front: findIdx(FRONT_KEYS),
+      back:  findIdx(BACK_KEYS),
+      note:  findIdx(NOTE_KEYS),
+      deck:  head.findIndex(h => h.includes('牌組') || h.toLowerCase().includes('deck')),
+    };
+    if (idx.front < 0 || idx.back < 0)
+      throw new Error('雲端表格需包含「正面」「背面」欄位');
+
+    // 建索引
+    const byKey = new Map(store.cards.map(c => [c.front + '\u0001' + c.back, c]));
+    let added = 0, updated = 0, skipped = 0;
+    const cloudKeys = new Set();
+
+    for (let i = 1; i < rows.length; i++){
+      const r = rows[i] || [];
+      const front = String(r[idx.front] ?? '').trim();
+      const back  = String(r[idx.back]  ?? '').trim();
+      if (!front || !back){ skipped++; continue; }
+
+      const key = front + '\u0001' + back;
+      cloudKeys.add(key);
+      const note = idx.note >= 0 ? String(r[idx.note] ?? '').trim() : '';
+      const deck = idx.deck >= 0 ? (String(r[idx.deck] ?? '').trim() || '預設') : '預設';
+
+      const exist = byKey.get(key);
+      if (exist){
+        if (exist.note !== note || exist.deck !== deck){
+          exist.note = note; exist.deck = deck;
+          updated++;
+        }
+      } else {
+        const card = { id: uid(), front, back, note, deck, created: Date.now() };
+        store.cards.push(card);
+        byKey.set(key, card);
+        added++;
+      }
+    }
+
+    store.settings.lastSync = Date.now();
+    save();
+    if (!session) render(); else updateHeader();
+
+    const msg = `☁️ 同步完成　新增 ${added} · 更新 ${updated}`;
+    if (!silent) toast(msg);
+    else if (added || updated) toast(msg);
+  } catch(e){
+    console.warn(e);
+    if (!silent) toast('❌ 同步失敗：' + e.message);
+  }
+}
+
+/* =========================================================
+   12. Excel 匯出 / 匯入
+   ========================================================= */
 function exportExcel(){
   if (!store.cards.length){ alert('目前沒有資料可以匯出'); return; }
 
-  // --- 工作表 1：字卡（含進度） ---
   const cardHeader = [
     'id','正面','背面','備註','牌組',
     '等級','複習次數','易度','間隔(天)','下次到期','遺忘次數','最後複習','建立時間'
   ];
   const cardRows = [cardHeader];
-
   store.cards.forEach(c => {
     const p = store.progress[c.id];
     const L = p && p.level ? LV_MAP[p.level] : null;
     cardRows.push([
-      c.id,
-      c.front,
-      c.back,
-      c.note || '',
-      c.deck || '預設',
+      c.id, c.front, c.back, c.note || '', c.deck || '預設',
       L ? L.name : '',
       p ? p.reps : '',
       p ? Number(p.ease.toFixed(2)) : '',
@@ -931,7 +1248,6 @@ function exportExcel(){
     { wch: 10 },{ wch: 18 },{ wch: 18 },
   ];
 
-  // --- 工作表 2：學習紀錄 ---
   const logHeader = ['時間','正面','背面','評分','模式'];
   const logRows = [logHeader];
   const cardById = new Map(store.cards.map(c => [c.id, c]));
@@ -940,8 +1256,7 @@ function exportExcel(){
     const L = LV_MAP[l.lv];
     logRows.push([
       formatDate(l.t),
-      c ? c.front : '',
-      c ? c.back : '',
+      c ? c.front : '', c ? c.back : '',
       L ? L.name : (l.lv || ''),
       l.mode === 'visual' ? '視覺' : l.mode === 'listen' ? '聽力' : (l.mode || ''),
     ]);
@@ -949,28 +1264,34 @@ function exportExcel(){
   const wsLogs = XLSX.utils.aoa_to_sheet(logRows);
   wsLogs['!cols'] = [{ wch: 18 },{ wch: 24 },{ wch: 24 },{ wch: 10 },{ wch: 10 }];
 
-  // --- 工作表 3：統計快照（唯讀參考，匯入時不讀） ---
   const today = dateKey();
-  const todayLogs = store.logs.filter(l => dateKey(new Date(l.t)) === today);
-  const todayOk = todayLogs.filter(l => l.lv >= 3).length;
+  const vLogs = store.logs.filter(l => l.mode === 'visual');
+  const lLogs = store.logs.filter(l => l.mode === 'listen');
+  const tV = vLogs.filter(l => dateKey(new Date(l.t)) === today);
+  const tL = lLogs.filter(l => dateKey(new Date(l.t)) === today);
+  const acc = arr => arr.length ? Math.round(arr.filter(l => l.lv >= 3).length / arr.length * 100) + '%' : '—';
+
   const statsRows = [
     ['項目','數值'],
     ['匯出時間', formatDate(Date.now())],
     ['總卡片數', store.cards.length],
     ['已學習', store.cards.filter(c => store.progress[c.id]).length],
     ['待複習', store.cards.filter(c => isDue(c.id)).length],
-    ['今日複習次數', todayLogs.length],
-    ['今日記得率', todayLogs.length ? `${Math.round(todayOk/todayLogs.length*100)}%` : '—'],
+    ['', ''],
+    ['模式','視覺','聽力'],
+    ['累計複習次數', vLogs.length, lLogs.length],
+    ['累計記得率', acc(vLogs), acc(lLogs)],
+    ['今日複習次數', tV.length, tL.length],
+    ['今日記得率', acc(tV), acc(tL)],
     ['', ''],
     ['等級','張數'],
     ...LEVELS.slice().reverse().map(L => [
-      L.name,
-      store.cards.filter(c => getLevel(c.id) === L.lv).length
+      L.name, store.cards.filter(c => getLevel(c.id) === L.lv).length
     ]),
     ['未學習', store.cards.filter(c => !store.progress[c.id]).length],
   ];
   const wsStats = XLSX.utils.aoa_to_sheet(statsRows);
-  wsStats['!cols'] = [{ wch: 16 },{ wch: 20 }];
+  wsStats['!cols'] = [{ wch: 16 },{ wch: 16 },{ wch: 16 }];
 
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, wsCards, 'Cards');
@@ -979,7 +1300,6 @@ function exportExcel(){
   XLSX.writeFile(wb, `字卡備份_${dateKey()}.xlsx`);
 }
 
-/* ---------- 範本 ---------- */
 function downloadTemplate(){
   const ws = XLSX.utils.aoa_to_sheet([
     ['正面','背面','備註','牌組'],
@@ -993,14 +1313,12 @@ function downloadTemplate(){
   XLSX.writeFile(wb, '字卡範本.xlsx');
 }
 
-/* ---------- 匯入 ---------- */
 function importExcel(file){
   const reader = new FileReader();
   reader.onload = e => {
     try {
       const wb = XLSX.read(new Uint8Array(e.target.result), { type:'array', cellDates:true });
 
-      /* 1) 找到卡片工作表 */
       let cardSheetName = null;
       if (wb.Sheets['Cards']) cardSheetName = 'Cards';
       else {
@@ -1043,13 +1361,12 @@ function importExcel(file){
         return;
       }
 
-      const isBackup = idx.level >= 0;   // 有等級欄位 → 視為完整備份
+      const isBackup = idx.level >= 0;
 
-      /* 2) 詢問合併或覆蓋 */
       let merge = false;
       if (store.cards.length){
         const msg = isBackup
-          ? `偵測到完整備份（含進度）。\n\n目前已有 ${store.cards.length} 張卡片。\n\n按「確定」＝合併（依 id / 內容比對，更新現有卡片）\n按「取消」＝覆蓋（清空現有資料後匯入）`
+          ? `偵測到完整備份（含進度）。\n\n目前已有 ${store.cards.length} 張卡片。\n\n按「確定」＝合併（依 id / 內容比對）\n按「取消」＝覆蓋（清空後匯入）`
           : `目前已有 ${store.cards.length} 張卡片。\n\n按「確定」＝合併（略過重複）\n按「取消」＝覆蓋（清空後匯入）`;
         merge = confirm(msg);
       }
@@ -1060,7 +1377,6 @@ function importExcel(file){
         store.logs = [];
       }
 
-      /* 3) 匯入卡片 */
       const byId  = new Map(store.cards.map(c => [c.id, c]));
       const byKey = new Map(store.cards.map(c => [c.front + '\u0001' + c.back, c]));
 
@@ -1078,8 +1394,7 @@ function importExcel(file){
         let card = (rowId && byId.get(rowId)) || byKey.get(key);
 
         if (card){
-          card.front = front;
-          card.back  = back;
+          card.front = front; card.back = back;
           if (idx.note >= 0) card.note = String(r[idx.note] ?? '').trim();
           if (idx.deck >= 0){
             const d = String(r[idx.deck] ?? '').trim();
@@ -1087,7 +1402,7 @@ function importExcel(file){
           }
           updated++;
         } else {
-          if (!front || !back){ skipped++; continue; }   // 非備份格式的新卡必須正反面都有
+          if (!front || !back){ skipped++; continue; }
           card = {
             id: rowId || uid(),
             front, back,
@@ -1101,7 +1416,6 @@ function importExcel(file){
           added++;
         }
 
-        /* 4) 若有進度欄位，一併寫入 */
         if (idx.level >= 0){
           const lv = parseLevel(r[idx.level]);
           if (lv > 0){
@@ -1118,7 +1432,6 @@ function importExcel(file){
         }
       }
 
-      /* 5) 匯入學習紀錄（僅備份格式，且為覆蓋模式時） */
       if (isBackup && !merge && wb.Sheets['Logs']){
         const lrows = XLSX.utils.sheet_to_json(wb.Sheets['Logs'], { header:1, blankrows:false, defval:'' });
         if (lrows.length > 1){
@@ -1143,9 +1456,7 @@ function importExcel(file){
                        : (modeRaw || '');
             logs.push({
               t: li.t >= 0 ? (parseDate(r[li.t]) || Date.now()) : Date.now(),
-              id: card ? card.id : '',
-              lv: lv || 3,
-              mode,
+              id: card ? card.id : '', lv: lv || 3, mode,
             });
           }
           store.logs = logs;
@@ -1157,8 +1468,7 @@ function importExcel(file){
       render();
 
       alert(
-        `匯入完成！\n` +
-        `新增 ${added} 張・更新 ${updated} 張` +
+        `匯入完成！\n新增 ${added} 張・更新 ${updated} 張` +
         (skipped ? `・略過 ${skipped} 張` : '') +
         (isBackup ? `\n（含進度${!merge && wb.Sheets['Logs'] ? '與學習紀錄' : ''}）` : '')
       );
@@ -1171,7 +1481,7 @@ function importExcel(file){
 }
 
 /* =========================================================
-   12. 事件綁定與啟動
+   13. 事件綁定與啟動
    ========================================================= */
 $('#tabs').addEventListener('click', e => {
   const b = e.target.closest('button[data-tab]');
@@ -1193,7 +1503,13 @@ document.addEventListener('keydown', e => {
   else if (['1','2','3','4','5'].includes(e.key)){ e.preventDefault(); doGrade(Number(e.key)); }
 });
 
+// 啟動
 render();
+
+// 背景自動同步
+if (store.settings.cloudUrl && store.settings.autoSync){
+  syncFromCloud(true);
+}
 </script>
 </body>
 </html>
