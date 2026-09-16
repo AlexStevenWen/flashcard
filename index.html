@@ -1,0 +1,1199 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>字卡記憶 · FlashCard Master</title>
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<style>
+  :root{
+    --bg:#f4f5fa; --panel:#ffffff; --text:#1a1f36; --muted:#6b7280;
+    --line:#e6e8ef; --pri:#4f46e5; --pri-soft:#eef2ff; --radius:16px;
+  }
+  @media (prefers-color-scheme: dark){
+    :root{ --bg:#0f1117; --panel:#171a23; --text:#e8eaf2; --muted:#9aa2b1;
+           --line:#262a36; --pri:#818cf8; --pri-soft:#1e2130; }
+  }
+  *{box-sizing:border-box}
+  body{
+    margin:0; background:var(--bg); color:var(--text);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","Noto Sans TC","PingFang TC","Microsoft JhengHei",sans-serif;
+    -webkit-font-smoothing:antialiased;
+  }
+  .app{max-width:1080px;margin:0 auto;padding:18px 16px 60px}
+  .topbar{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:14px}
+  .brand{font-size:21px;font-weight:800;letter-spacing:.5px}
+  .hstats{display:flex;gap:8px;flex-wrap:wrap;font-size:12px}
+  .hstat{background:var(--panel);border:1px solid var(--line);border-radius:999px;padding:5px 12px;color:var(--muted)}
+  .hstat b{color:var(--text);font-size:13px}
+  .tabs{display:flex;gap:4px;flex-wrap:wrap;margin-bottom:16px;background:var(--panel);
+        padding:5px;border-radius:999px;border:1px solid var(--line);width:fit-content;max-width:100%}
+  .tabs button{border:0;background:transparent;padding:9px 15px;border-radius:999px;cursor:pointer;
+        font-size:14px;color:var(--muted);font-weight:600;transition:.18s;white-space:nowrap}
+  .tabs button:hover{color:var(--text)}
+  .tabs button.active{background:var(--pri);color:#fff}
+  .panel{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);padding:18px}
+  .muted{color:var(--muted)}
+  .input{background:var(--bg);border:1px solid var(--line);color:var(--text);border-radius:10px;
+         padding:9px 12px;font-size:14px;font-family:inherit;outline:none}
+  .input:focus{border-color:var(--pri)}
+  select.input{cursor:pointer}
+  .btn{border:1px solid var(--line);background:var(--panel);color:var(--text);border-radius:11px;
+       padding:10px 18px;font-size:14px;font-weight:700;cursor:pointer;font-family:inherit;transition:.15s}
+  .btn:hover{transform:translateY(-1px)}
+  .btn.primary{background:var(--pri);border-color:var(--pri);color:#fff}
+  .btn.ghost{background:transparent}
+  .btn.big{padding:13px 34px;font-size:16px;border-radius:13px;margin-top:8px}
+  .toolbar{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:16px}
+  .grow{flex:1;min-width:180px}
+  .empty{text-align:center;padding:60px 20px;color:var(--muted);font-size:15px}
+  .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:14px}
+  .cardbox{display:flex;flex-direction:column;gap:8px}
+  .fcard{perspective:1000px;height:132px;cursor:pointer}
+  .fcard-flip{position:relative;width:100%;height:100%;transform-style:preserve-3d;transition:transform .45s cubic-bezier(.4,.2,.2,1)}
+  .fcard.flipped .fcard-flip{transform:rotateY(180deg)}
+  .fc-front,.fc-back{position:absolute;inset:0;backface-visibility:hidden;-webkit-backface-visibility:hidden;
+    background:var(--panel);border:1px solid var(--line);border-radius:14px;display:flex;flex-direction:column;
+    align-items:center;justify-content:center;padding:14px;text-align:center;overflow:auto}
+  .fc-back{transform:rotateY(180deg);background:var(--pri-soft);border-color:transparent}
+  .fc-text{font-weight:700;font-size:16px;line-height:1.35;word-break:break-word}
+  .fc-back .fc-text{color:var(--pri)}
+  .fc-note{font-size:11px;color:var(--muted);margin-top:6px}
+  .fc-foot{display:flex;justify-content:space-between;align-items:center}
+  .tag{font-size:11px;font-weight:700;padding:3px 9px;border-radius:999px;background:var(--bg);color:var(--muted)}
+  .fc-actions{display:flex;gap:4px}
+  .icon-btn{border:1px solid var(--line);background:var(--panel);border-radius:9px;width:30px;height:30px;
+    cursor:pointer;font-size:14px;line-height:1;display:flex;align-items:center;justify-content:center;color:var(--text)}
+  .icon-btn:hover{border-color:var(--pri)}
+  .setup h2{margin:0 0 6px;font-size:20px}
+  .setup-row{display:flex;gap:14px;flex-wrap:wrap;margin:18px 0 22px}
+  .setup-row label{display:flex;flex-direction:column;gap:6px;font-size:12px;font-weight:700;color:var(--muted)}
+  .studybar{display:flex;align-items:center;gap:12px;margin-bottom:16px}
+  .bar{flex:1;height:8px;background:var(--line);border-radius:999px;overflow:hidden}
+  .bar-fill{height:100%;background:var(--pri);border-radius:999px;transition:width .3s}
+  .pill{font-size:13px;font-weight:700;color:var(--muted);white-space:nowrap}
+  .studycard{display:flex;flex-direction:column;align-items:center;gap:16px}
+  .flipwrap{width:100%;max-width:680px;height:320px;perspective:1500px;cursor:pointer}
+  .flipper{position:relative;width:100%;height:100%;transform-style:preserve-3d;
+    transition:transform .55s cubic-bezier(.4,.2,.2,1)}
+  .flipwrap.flipped .flipper{transform:rotateY(180deg)}
+  .face{position:absolute;inset:0;backface-visibility:hidden;-webkit-backface-visibility:hidden;
+    border-radius:20px;border:1px solid var(--line);background:var(--panel);display:flex;flex-direction:column;
+    align-items:center;justify-content:center;gap:10px;padding:28px;text-align:center;overflow:auto;
+    box-shadow:0 10px 34px rgba(15,23,42,.07)}
+  .face.back{transform:rotateY(180deg);background:linear-gradient(160deg,var(--pri-soft),var(--panel))}
+  .face-text{font-size:clamp(22px,4.2vw,40px);font-weight:800;line-height:1.3;word-break:break-word}
+  .face .note{font-size:13px;color:var(--muted)}
+  .bigspeak{font-size:56px;background:none;border:0;cursor:pointer;line-height:1;filter:drop-shadow(0 4px 10px rgba(79,70,229,.3))}
+  .grades{display:flex;gap:10px;flex-wrap:wrap;justify-content:center;margin-top:20px;
+    opacity:.3;pointer-events:none;transition:.2s}
+  .grades.show{opacity:1;pointer-events:auto}
+  .grade{border:2px solid var(--c);color:var(--c);background:var(--panel);border-radius:13px;
+    padding:10px 16px;font-weight:800;cursor:pointer;display:flex;flex-direction:column;align-items:center;
+    gap:2px;min-width:92px;font-size:14px;font-family:inherit;transition:.15s}
+  .grade b{font-size:10px;opacity:.55;font-weight:700}
+  .grade:hover{background:var(--c);color:#fff}
+  .hint{text-align:center;font-size:12px;color:var(--muted);margin-top:18px}
+  .kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(118px,1fr));gap:12px;margin:0 0 16px}
+  .kpi{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:16px 10px;text-align:center}
+  .kpi-v{font-size:26px;font-weight:800;color:var(--pri);line-height:1.1}
+  .kpi-l{font-size:12px;color:var(--muted);margin-top:5px}
+  .panel h3{margin:0 0 14px;font-size:15px}
+  .lvrow{display:flex;align-items:center;gap:10px;margin-bottom:9px;font-size:13px}
+  .lvname{width:78px;font-weight:700;flex-shrink:0}
+  .lvbar{flex:1;height:20px;background:var(--bg);border-radius:6px;overflow:hidden}
+  .lvfill{height:100%;border-radius:6px;transition:width .4s}
+  .lvnum{width:74px;text-align:right;color:var(--muted);font-size:12px;flex-shrink:0}
+  .chart{display:flex;align-items:flex-end;gap:6px;height:130px;padding-top:10px}
+  .cbar{flex:1;display:flex;flex-direction:column;align-items:center;gap:5px;height:100%;justify-content:flex-end}
+  .cbar-fill{width:100%;background:var(--pri);border-radius:5px 5px 0 0;min-height:3px;transition:height .4s;opacity:.85}
+  .cbar-lb{font-size:10px;color:var(--muted)}
+  .two{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+  @media(max-width:720px){.two{grid-template-columns:1fr}}
+  .done{text-align:center;padding:44px 20px}
+  .done-emoji{font-size:56px}
+  .done h2{margin:8px 0 4px}
+  .done-actions{display:flex;gap:10px;justify-content:center;flex-wrap:wrap;margin-top:10px}
+  .setrow{display:flex;justify-content:space-between;align-items:center;gap:14px;padding:13px 0;border-bottom:1px solid var(--line);flex-wrap:wrap}
+  .setrow:last-child{border-bottom:0}
+  .setrow .lbl{font-size:14px;font-weight:700}
+  .setrow .sub{font-size:12px;color:var(--muted);margin-top:3px;font-weight:400}
+  .toast{position:fixed;left:50%;bottom:30px;transform:translateX(-50%);background:#111827;color:#fff;
+    padding:11px 20px;border-radius:999px;font-size:14px;z-index:999;animation:pop .25s;font-weight:600}
+  @keyframes pop{from{opacity:0;transform:translate(-50%,12px)}}
+</style>
+</head>
+<body>
+<div class="app">
+  <div class="topbar">
+    <div class="brand">🧠 字卡記憶</div>
+    <div class="hstats" id="hstats"></div>
+  </div>
+  <nav class="tabs" id="tabs">
+    <button data-tab="browse" class="active">📖 字卡瀏覽</button>
+    <button data-tab="visual">🔄 視覺翻卡</button>
+    <button data-tab="listen">🎧 聽力翻卡</button>
+    <button data-tab="stats">📊 統計</button>
+    <button data-tab="settings">⚙️ 設定</button>
+  </nav>
+  <main id="view"></main>
+</div>
+
+<script>
+/* =========================================================
+   1. 常數與工具
+   ========================================================= */
+const STORAGE_KEY = 'flashcard-master-v2';
+
+const LEVELS = [
+  { lv:1, name:'不記得',   color:'#dc2626', days:0  },
+  { lv:2, name:'有點印象', color:'#ea580c', days:1  },
+  { lv:3, name:'一般',     color:'#ca8a04', days:2  },
+  { lv:4, name:'熟',       color:'#16a34a', days:5  },
+  { lv:5, name:'精熟',     color:'#2563eb', days:10 },
+];
+const LV_MAP = Object.fromEntries(LEVELS.map(l => [l.lv, l]));
+
+const FRONT_KEYS = ['正面','front','單字','单词','word','問題','问题','question','題目','题目',
+                    '詞','词','英文','日文','原文','term','單詞'];
+const BACK_KEYS  = ['背面','back','翻譯','翻译','意思','答案','answer','解釋','解释',
+                    '中文','定義','定义','meaning','definition','說明'];
+const NOTE_KEYS  = ['備註','备注','note','補充','补充','例句','提示'];
+
+const $  = s => document.querySelector(s);
+const $$ = s => [...document.querySelectorAll(s)];
+const uid = () => Math.random().toString(36).slice(2, 9) + Date.now().toString(36).slice(-4);
+const esc = s => String(s ?? '').replace(/[&<>"']/g, m =>
+  ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[m]));
+
+function dateKey(d = new Date()){
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const dd = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${dd}`;
+}
+function formatDate(ts){
+  if (!ts) return '';
+  const d = new Date(ts);
+  const pad = n => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+function parseDate(v){
+  if (v == null || v === '') return 0;
+  if (v instanceof Date) return v.getTime();
+  if (typeof v === 'number'){
+    // Excel 序列日期（1900 制）
+    if (v > 20000 && v < 90000) return Math.round((v - 25569) * 86400 * 1000);
+    return v;
+  }
+  const d = new Date(String(v).replace(/\//g,'-'));
+  return isNaN(d.getTime()) ? 0 : d.getTime();
+}
+function parseLevel(v){
+  if (v == null || v === '') return 0;
+  const n = Number(v);
+  if (n >= 1 && n <= 5 && Number.isFinite(n)) return Math.round(n);
+  const s = String(v).trim();
+  const found = LEVELS.find(L => L.name === s || s.includes(L.name) || L.name.includes(s));
+  return found ? found.lv : 0;
+}
+function toast(msg){
+  const t = document.createElement('div');
+  t.className = 'toast';
+  t.textContent = msg;
+  document.body.appendChild(t);
+  setTimeout(() => t.remove(), 1800);
+}
+
+/* =========================================================
+   2. 狀態
+   ========================================================= */
+function defaultStore(){
+  return {
+    cards: [],
+    progress: {},
+    logs: [],
+    settings: { lang:'en-US', rate:0.9, autoSpeak:true, showFrontInListen:false },
+    ui: { q:'', deck:'all', level:'all' },
+    created: Date.now(),
+  };
+}
+let store = loadStore();
+
+function loadStore(){
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (!raw) return defaultStore();
+    const s = JSON.parse(raw);
+    const d = defaultStore();
+    return {
+      cards: s.cards || [],
+      progress: s.progress || {},
+      logs: s.logs || [],
+      settings: Object.assign(d.settings, s.settings || {}),
+      ui: Object.assign(d.ui, s.ui || {}),
+      created: s.created || Date.now(),
+    };
+  } catch(e){ return defaultStore(); }
+}
+function save(){
+  try { localStorage.setItem(STORAGE_KEY, JSON.stringify(store)); }
+  catch(e){ console.warn('儲存失敗', e); }
+}
+
+/* =========================================================
+   3. 語音
+   ========================================================= */
+let voices = [];
+function loadVoices(){ voices = window.speechSynthesis ? speechSynthesis.getVoices() : []; }
+if (window.speechSynthesis){
+  loadVoices();
+  speechSynthesis.onvoiceschanged = loadVoices;
+}
+function pickLang(text){
+  const t = String(text || '');
+  if (/[\u3040-\u30ff]/.test(t)) return 'ja-JP';
+  if (/[\uac00-\ud7af]/.test(t)) return 'ko-KR';
+  if (/[\u4e00-\u9fff]/.test(t)) return 'zh-TW';
+  return store.settings.lang || 'en-US';
+}
+function speak(text, lang){
+  if (!window.speechSynthesis || !text) return;
+  try {
+    speechSynthesis.cancel();
+    const u = new SpeechSynthesisUtterance(String(text));
+    const L = lang || pickLang(text);
+    u.lang = L;
+    const norm = v => (v.lang || '').replace('_', '-').toLowerCase();
+    const target = L.toLowerCase();
+    const v = voices.find(x => norm(x) === target)
+           || voices.find(x => norm(x).startsWith(target.split('-')[0]));
+    if (v) u.voice = v;
+    u.rate = Number(store.settings.rate) || 0.9;
+    u.pitch = 1;
+    speechSynthesis.speak(u);
+  } catch(e){ console.warn(e); }
+}
+
+/* =========================================================
+   4. 進度演算法
+   ========================================================= */
+function newProgress(){
+  return { level:0, ease:2.5, interval:0, due:0, reps:0, lapses:0, last:0 };
+}
+function getLevel(id){ const p = store.progress[id]; return p ? p.level : 0; }
+function isDue(id){
+  const p = store.progress[id];
+  return !p || p.due <= Date.now();
+}
+function gradeCard(cardId, level, mode){
+  const p = store.progress[cardId] || (store.progress[cardId] = newProgress());
+  p.reps++;
+  p.last = Date.now();
+  if (level === 1) p.lapses++;
+
+  if (level >= 4)      p.ease = Math.min(3.0, p.ease + 0.08);
+  else if (level === 2) p.ease = Math.max(1.3, p.ease - 0.15);
+  else if (level === 1) p.ease = Math.max(1.3, p.ease - 0.30);
+
+  const base = (LV_MAP[level] || LV_MAP[1]).days;
+  const days = level === 1 ? 0 : Math.max(1, Math.round(base * (p.ease / 2.5)));
+
+  p.level = level;
+  p.interval = days;
+  p.due = level === 1
+    ? Date.now() + 10 * 60 * 1000
+    : Date.now() + days * 86400000;
+
+  store.logs.push({ t: Date.now(), id: cardId, lv: level, mode });
+  if (store.logs.length > 30000) store.logs = store.logs.slice(-20000);
+  save();
+}
+
+/* =========================================================
+   5. 佇列
+   ========================================================= */
+function buildQueue(opts){
+  let list = store.cards.slice();
+  if (opts.deck && opts.deck !== 'all')
+    list = list.filter(c => (c.deck || '預設') === opts.deck);
+
+  if (opts.scope === 'due')       list = list.filter(c => isDue(c.id));
+  else if (opts.scope === 'new')  list = list.filter(c => !store.progress[c.id]);
+  else if (opts.scope === 'weak') list = list.filter(c => { const l = getLevel(c.id); return l > 0 && l <= 2; });
+
+  list.sort((a, b) => {
+    const pa = store.progress[a.id], pb = store.progress[b.id];
+    const da = pa ? pa.due : 0, db = pb ? pb.due : 0;
+    if (da !== db) return da - db;
+    return Math.random() - 0.5;
+  });
+
+  if (opts.limit > 0) list = list.slice(0, opts.limit);
+  return list;
+}
+
+/* =========================================================
+   6. 主渲染
+   ========================================================= */
+let currentTab = 'browse';
+let session = null;
+
+function updateHeader(){
+  const total  = store.cards.length;
+  const due    = store.cards.filter(c => isDue(c.id)).length;
+  const today  = dateKey();
+  const todayN = store.logs.filter(l => dateKey(new Date(l.t)) === today).length;
+  $('#hstats').innerHTML = `
+    <span class="hstat">卡片 <b>${total}</b></span>
+    <span class="hstat">待複習 <b>${due}</b></span>
+    <span class="hstat">今日 <b>${todayN}</b></span>`;
+}
+
+function render(){
+  $$('#tabs button').forEach(b => b.classList.toggle('active', b.dataset.tab === currentTab));
+  updateHeader();
+  if (currentTab === 'browse')        renderBrowse();
+  else if (currentTab === 'visual')   renderStudyUI('visual');
+  else if (currentTab === 'listen')   renderStudyUI('listen');
+  else if (currentTab === 'stats')    renderStats();
+  else if (currentTab === 'settings') renderSettings();
+}
+
+/* =========================================================
+   7. 字卡瀏覽
+   ========================================================= */
+function filteredCards(){
+  const q = (store.ui.q || '').trim().toLowerCase();
+  return store.cards.filter(c => {
+    if (store.ui.deck !== 'all' && (c.deck || '預設') !== store.ui.deck) return false;
+    if (store.ui.level !== 'all' && String(getLevel(c.id)) !== store.ui.level) return false;
+    if (q){
+      const hay = `${c.front} ${c.back} ${c.note || ''}`.toLowerCase();
+      if (!hay.includes(q)) return false;
+    }
+    return true;
+  });
+}
+
+function renderBrowse(){
+  const decks = [...new Set(store.cards.map(c => c.deck || '預設'))];
+  $('#view').innerHTML = `
+    <div class="panel">
+      <div class="toolbar">
+        <input id="q" class="input grow" placeholder="🔍 搜尋正面、背面或備註…" value="${esc(store.ui.q)}" />
+        <select id="fDeck" class="input">
+          <option value="all">全部牌組</option>
+          ${decks.map(d => `<option value="${esc(d)}" ${store.ui.deck === d ? 'selected' : ''}>${esc(d)}</option>`).join('')}
+        </select>
+        <select id="fLevel" class="input">
+          <option value="all">全部等級</option>
+          <option value="0" ${store.ui.level === '0' ? 'selected' : ''}>未學習</option>
+          ${[5,4,3,2,1].map(n => {
+            const l = LV_MAP[n];
+            return `<option value="${n}" ${store.ui.level === String(n) ? 'selected' : ''}>${l.name}</option>`;
+          }).join('')}
+        </select>
+        <span class="muted" id="cnt"></span>
+      </div>
+      <div id="grid" class="grid"></div>
+    </div>`;
+
+  $('#q').oninput = e => { store.ui.q = e.target.value; renderGrid(); };
+  $('#fDeck').onchange = e => { store.ui.deck = e.target.value; renderGrid(); };
+  $('#fLevel').onchange = e => { store.ui.level = e.target.value; renderGrid(); };
+  renderGrid();
+}
+
+function renderGrid(){
+  const grid = $('#grid');
+  if (!grid) return;
+  const list = filteredCards();
+  const cnt = $('#cnt');
+  if (cnt) cnt.textContent = `${list.length} 張`;
+
+  if (!list.length){
+    grid.innerHTML = `<div class="empty" style="grid-column:1/-1">
+      ${store.cards.length ? '沒有符合條件的卡片 🔍' : '還沒有卡片，去「⚙️ 設定」匯入 Excel 吧！'}
+    </div>`;
+    return;
+  }
+
+  grid.innerHTML = list.map(c => {
+    const lv = getLevel(c.id);
+    const L = lv ? LV_MAP[lv] : null;
+    const tagStyle = L ? `background:${L.color}1f;color:${L.color}` : '';
+    return `<div class="cardbox" data-id="${c.id}">
+      <div class="fcard">
+        <div class="fcard-flip">
+          <div class="fc-front"><div class="fc-text">${esc(c.front)}</div></div>
+          <div class="fc-back">
+            <div class="fc-text">${esc(c.back)}</div>
+            ${c.note ? `<div class="fc-note">${esc(c.note)}</div>` : ''}
+          </div>
+        </div>
+      </div>
+      <div class="fc-foot">
+        <span class="tag" style="${tagStyle}">${L ? L.name : '未學習'}</span>
+        <div class="fc-actions">
+          <button class="icon-btn" data-act="speak" title="發音">🔊</button>
+          <button class="icon-btn" data-act="reset" title="重置這張進度">↺</button>
+        </div>
+      </div>
+    </div>`;
+  }).join('');
+
+  grid.onclick = e => {
+    const box = e.target.closest('.cardbox');
+    if (!box) return;
+    const id = box.dataset.id;
+    const card = store.cards.find(c => c.id === id);
+    if (!card) return;
+
+    const btn = e.target.closest('button');
+    if (btn){
+      if (btn.dataset.act === 'speak') speak(card.front);
+      if (btn.dataset.act === 'reset'){
+        delete store.progress[id];
+        save(); renderGrid(); updateHeader();
+        toast('已重置這張卡');
+      }
+      return;
+    }
+    box.querySelector('.fcard').classList.toggle('flipped');
+  };
+}
+
+/* =========================================================
+   8. 學習模式
+   ========================================================= */
+function renderStudyUI(mode){
+  if (session && session.mode === mode){
+    if (session.idx >= session.queue.length) drawDone(mode);
+    else drawCard(mode);
+  } else {
+    drawSetup(mode);
+  }
+}
+
+function drawSetup(mode){
+  const isListen = mode === 'listen';
+  const decks = [...new Set(store.cards.map(c => c.deck || '預設'))];
+  $('#view').innerHTML = `
+    <div class="panel setup">
+      <h2>${isListen ? '🎧 聽力翻卡' : '🔄 視覺翻卡'}</h2>
+      <p class="muted" style="margin:0">
+        ${isListen
+          ? '先聽發音 → 腦中回想答案 → 翻卡核對 → 自我評價'
+          : '看正面 → 腦中回想答案 → 翻卡核對 → 自我評價'}
+      </p>
+      <div class="setup-row">
+        <label>牌組
+          <select id="sDeck" class="input">
+            <option value="all">全部牌組</option>
+            ${decks.map(d => `<option value="${esc(d)}">${esc(d)}</option>`).join('')}
+          </select>
+        </label>
+        <label>範圍
+          <select id="sScope" class="input">
+            <option value="all">全部卡片</option>
+            <option value="due">只複習到期</option>
+            <option value="new">只學新卡</option>
+            <option value="weak">只練不熟</option>
+          </select>
+        </label>
+        <label>張數
+          <select id="sLimit" class="input">
+            <option value="10">10 張</option>
+            <option value="20" selected>20 張</option>
+            <option value="50">50 張</option>
+            <option value="0">全部</option>
+          </select>
+        </label>
+      </div>
+      <button class="btn primary big" id="startBtn">開始學習</button>
+      ${store.cards.length ? '' : '<p class="muted" style="margin-top:16px">⚠️ 目前沒有卡片，請先到「⚙️ 設定」匯入 Excel。</p>'}
+    </div>`;
+
+  $('#startBtn').onclick = () => {
+    if (!store.cards.length){ toast('請先匯入卡片'); currentTab = 'settings'; render(); return; }
+    startSession(mode, {
+      deck: $('#sDeck').value,
+      scope: $('#sScope').value,
+      limit: Number($('#sLimit').value),
+    });
+  };
+}
+
+function startSession(mode, opts){
+  const queue = buildQueue(opts);
+  if (!queue.length){ toast('沒有符合條件的卡片'); return; }
+  session = {
+    mode, queue, idx:0, flipped:false,
+    repeats:{}, done:0, ok:0, total: queue.length,
+  };
+  drawCard(mode);
+  updateHeader();
+}
+
+function drawCard(mode){
+  const s = session;
+  const card = s.queue[s.idx];
+  if (!card) return drawDone(mode);
+
+  const isListen = mode === 'listen';
+  const frontHTML = isListen
+    ? (store.settings.showFrontInListen
+        ? `<div class="face-text">${esc(card.front)}</div>`
+        : `<button class="bigspeak" id="bigSpeak" title="播放發音">🔊</button>
+           <div class="note">點一下重聽</div>`)
+    : `<div class="face-text">${esc(card.front)}</div>
+       ${card.note ? `<div class="note">${esc(card.note)}</div>` : ''}`;
+
+  $('#view').innerHTML = `
+    <div class="studybar">
+      <button class="btn ghost" id="quitBtn">✕ 結束</button>
+      <div class="bar"><div class="bar-fill" style="width:${(s.idx / s.total * 100).toFixed(1)}%"></div></div>
+      <div class="pill">${s.idx + 1} / ${s.total}</div>
+    </div>
+
+    <div class="studycard">
+      <div class="flipwrap ${s.flipped ? 'flipped' : ''}" id="flipwrap">
+        <div class="flipper">
+          <div class="face front">${frontHTML}</div>
+          <div class="face back">
+            <div class="face-text">${esc(card.back)}</div>
+            <div class="note">${esc(card.front)}</div>
+          </div>
+        </div>
+      </div>
+      <button class="btn ghost" id="playBtn">🔊 ${isListen ? '再聽一次' : '發音'}</button>
+    </div>
+
+    <div class="grades ${s.flipped ? 'show' : ''}" id="grades">
+      ${LEVELS.map(l => `
+        <button class="grade" style="--c:${l.color}" data-lv="${l.lv}">
+          <b>${l.lv}</b>${l.name}
+        </button>`).join('')}
+    </div>
+
+    <p class="hint">${s.flipped ? '請自我評價（鍵盤 1–5）' : '點卡片或按空白鍵翻卡'}</p>
+  `;
+
+  $('#quitBtn').onclick = () => { session = null; drawSetup(mode); };
+  $('#flipwrap').onclick = e => {
+    if (e.target.closest('#bigSpeak')) return;
+    flipCard();
+  };
+  $('#playBtn').onclick = e => { e.stopPropagation(); speak(card.front); };
+  const bs = $('#bigSpeak');
+  if (bs) bs.onclick = e => { e.stopPropagation(); speak(card.front); };
+  $('#grades').onclick = e => {
+    const b = e.target.closest('.grade');
+    if (b) doGrade(Number(b.dataset.lv));
+  };
+
+  if (isListen && !s.flipped){
+    setTimeout(() => speak(card.front), 260);
+  }
+}
+
+function flipCard(){
+  if (!session || session.flipped) return;
+  session.flipped = true;
+  const w = $('#flipwrap');
+  if (w) w.classList.add('flipped');
+  const g = $('#grades');
+  if (g) g.classList.add('show');
+  const h = document.querySelector('.hint');
+  if (h) h.textContent = '請自我評價（鍵盤 1–5）';
+}
+
+function doGrade(lv){
+  if (!session || !session.flipped) return;
+  const s = session;
+  const card = s.queue[s.idx];
+  if (!card) return;
+
+  gradeCard(card.id, lv, s.mode);
+  s.done++;
+  if (lv >= 3) s.ok++;
+
+  if (lv === 1){
+    const r = s.repeats[card.id] || 0;
+    if (r < 1){
+      s.repeats[card.id] = r + 1;
+      s.queue.push(card);
+      s.total++;
+    }
+  }
+
+  s.idx++;
+  s.flipped = false;
+  updateHeader();
+
+  if (s.idx >= s.queue.length) drawDone(s.mode);
+  else drawCard(s.mode);
+}
+
+function drawDone(mode){
+  const s = session;
+  const acc = s && s.done ? Math.round(s.ok / s.done * 100) : 0;
+  $('#view').innerHTML = `
+    <div class="panel done">
+      <div class="done-emoji">🎉</div>
+      <h2>本輪完成！</h2>
+      <p class="muted" style="margin:0">${mode === 'listen' ? '聽力翻卡' : '視覺翻卡'}</p>
+      <div class="kpis" style="max-width:420px;margin:22px auto 6px">
+        <div class="kpi"><div class="kpi-v">${s ? s.done : 0}</div><div class="kpi-l">複習張數</div></div>
+        <div class="kpi"><div class="kpi-v">${acc}%</div><div class="kpi-l">記得率</div></div>
+      </div>
+      <div class="done-actions">
+        <button class="btn primary" id="againBtn">再來一輪</button>
+        <button class="btn ghost" id="backBtn">回到設定</button>
+        <button class="btn ghost" id="toStats">看統計</button>
+      </div>
+    </div>`;
+
+  $('#againBtn').onclick = () => { const m = session ? session.mode : mode; session = null; renderStudyUI(m); };
+  $('#backBtn').onclick  = () => { session = null; drawSetup(mode); };
+  $('#toStats').onclick  = () => { session = null; currentTab = 'stats'; render(); };
+}
+
+/* =========================================================
+   9. 統計
+   ========================================================= */
+function renderStats(){
+  const total   = store.cards.length;
+  const learned = store.cards.filter(c => store.progress[c.id]).length;
+  const due     = store.cards.filter(c => isDue(c.id)).length;
+
+  const today     = dateKey();
+  const todayLogs = store.logs.filter(l => dateKey(new Date(l.t)) === today);
+  const todayOk   = todayLogs.filter(l => l.lv >= 3).length;
+  const todayAcc  = todayLogs.length ? Math.round(todayOk / todayLogs.length * 100) : 0;
+
+  const counts = { 0:0, 1:0, 2:0, 3:0, 4:0, 5:0 };
+  store.cards.forEach(c => { counts[getLevel(c.id)]++; });
+
+  const days = [];
+  for (let i = 13; i >= 0; i--){
+    const d = new Date(); d.setDate(d.getDate() - i);
+    const k = dateKey(d);
+    const n = store.logs.filter(l => dateKey(new Date(l.t)) === k).length;
+    days.push({ n, label: `${d.getMonth() + 1}/${d.getDate()}` });
+  }
+  const maxDay = Math.max(1, ...days.map(d => d.n));
+
+  const future = [];
+  for (let i = 0; i < 7; i++){
+    const start = new Date(); start.setHours(0,0,0,0); start.setDate(start.getDate() + i);
+    const end = new Date(start); end.setDate(end.getDate() + 1);
+    const n = store.cards.filter(c => {
+      const p = store.progress[c.id];
+      if (!p) return i === 0;
+      return p.due >= start.getTime() && p.due < end.getTime();
+    }).length;
+    future.push({ n, label: i === 0 ? '今天' : `${start.getMonth()+1}/${start.getDate()}` });
+  }
+  const maxFut = Math.max(1, ...future.map(f => f.n));
+
+  const deckMap = {};
+  store.cards.forEach(c => {
+    const d = c.deck || '預設';
+    if (!deckMap[d]) deckMap[d] = { total:0, learned:0, mastered:0 };
+    deckMap[d].total++;
+    const lv = getLevel(c.id);
+    if (lv) deckMap[d].learned++;
+    if (lv === 5) deckMap[d].mastered++;
+  });
+
+  const masteryRate = total ? Math.round((counts[5] + counts[4]) / total * 100) : 0;
+
+  $('#view').innerHTML = `
+    <div class="kpis">
+      <div class="kpi"><div class="kpi-v">${total}</div><div class="kpi-l">總卡片</div></div>
+      <div class="kpi"><div class="kpi-v">${learned}</div><div class="kpi-l">已學習</div></div>
+      <div class="kpi"><div class="kpi-v">${due}</div><div class="kpi-l">待複習</div></div>
+      <div class="kpi"><div class="kpi-v">${todayLogs.length}</div><div class="kpi-l">今日複習</div></div>
+      <div class="kpi"><div class="kpi-v">${todayAcc}%</div><div class="kpi-l">今日記得率</div></div>
+      <div class="kpi"><div class="kpi-v">${masteryRate}%</div><div class="kpi-l">精熟+熟 佔比</div></div>
+    </div>
+
+    <div class="panel" style="margin-bottom:14px">
+      <h3>📊 等級分布</h3>
+      ${[5,4,3,2,1,0].map(lv => {
+        const L = lv ? LV_MAP[lv] : { name:'未學習', color:'#94a3b8' };
+        const n = counts[lv];
+        const pct = total ? (n / total * 100) : 0;
+        return `<div class="lvrow">
+          <div class="lvname" style="color:${L.color}">${L.name}</div>
+          <div class="lvbar"><div class="lvfill" style="width:${pct.toFixed(1)}%;background:${L.color}"></div></div>
+          <div class="lvnum">${n} 張 · ${pct.toFixed(0)}%</div>
+        </div>`;
+      }).join('')}
+    </div>
+
+    <div class="two" style="margin-bottom:14px">
+      <div class="panel">
+        <h3>📅 近 14 天複習量</h3>
+        <div class="chart">
+          ${days.map(d => `
+            <div class="cbar" title="${d.label}：${d.n} 次">
+              <div class="cbar-fill" style="height:${(d.n / maxDay * 100).toFixed(1)}%"></div>
+              <div class="cbar-lb">${d.label.split('/')[1]}</div>
+            </div>`).join('')}
+        </div>
+      </div>
+      <div class="panel">
+        <h3>⏰ 未來 7 天到期</h3>
+        <div class="chart">
+          ${future.map(d => `
+            <div class="cbar" title="${d.label}：${d.n} 張">
+              <div class="cbar-fill" style="height:${(d.n / maxFut * 100).toFixed(1)}%;background:#f59e0b"></div>
+              <div class="cbar-lb">${d.label}</div>
+            </div>`).join('')}
+        </div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <h3>🗂 牌組統計</h3>
+      ${Object.keys(deckMap).length ? `
+      <div style="overflow-x:auto">
+        <table style="width:100%;border-collapse:collapse;font-size:13px">
+          <thead>
+            <tr style="text-align:left;color:var(--muted)">
+              <th style="padding:8px 6px">牌組</th>
+              <th style="padding:8px 6px">總數</th>
+              <th style="padding:8px 6px">已學習</th>
+              <th style="padding:8px 6px">精熟</th>
+              <th style="padding:8px 6px">進度</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${Object.entries(deckMap).map(([d, v]) => `
+              <tr style="border-top:1px solid var(--line)">
+                <td style="padding:9px 6px;font-weight:700">${esc(d)}</td>
+                <td style="padding:9px 6px">${v.total}</td>
+                <td style="padding:9px 6px">${v.learned}</td>
+                <td style="padding:9px 6px">${v.mastered}</td>
+                <td style="padding:9px 6px">
+                  <div class="lvbar" style="height:8px">
+                    <div class="lvfill" style="width:${(v.mastered / v.total * 100).toFixed(1)}%;background:var(--pri)"></div>
+                  </div>
+                </td>
+              </tr>`).join('')}
+          </tbody>
+        </table>
+      </div>` : '<p class="muted">尚無資料</p>'}
+    </div>
+  `;
+}
+
+/* =========================================================
+   10. 設定
+   ========================================================= */
+function renderSettings(){
+  $('#view').innerHTML = `
+    <div class="panel" style="margin-bottom:14px">
+      <h3>📥 匯入 / 匯出 Excel</h3>
+      <div class="setrow">
+        <div>
+          <div class="lbl">下載備份（Excel）</div>
+          <div class="sub">包含卡片、學習進度、統計紀錄三個工作表，下次可原檔匯回</div>
+        </div>
+        <button class="btn primary" id="expXlsx">⬇️ 匯出 Excel</button>
+      </div>
+      <div class="setrow">
+        <div>
+          <div class="lbl">上傳 Excel</div>
+          <div class="sub">支援 .xlsx / .xls / .csv。若為本程式匯出的備份，會完整還原進度與統計</div>
+        </div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap">
+          <button class="btn ghost" id="tplBtn">下載範本</button>
+          <button class="btn primary" id="impBtn">⬆️ 選擇檔案</button>
+        </div>
+      </div>
+      <input type="file" id="fileInput" accept=".xlsx,.xls,.csv" style="display:none" />
+    </div>
+
+    <div class="panel" style="margin-bottom:14px">
+      <h3>🔊 語音設定</h3>
+      <div class="setrow">
+        <div class="lbl">預設語言<div class="sub">非中文內容將使用此語言發音</div></div>
+        <select id="setLang" class="input">
+          ${[
+            ['en-US','英語（美）'],['en-GB','英語（英）'],['ja-JP','日語'],
+            ['ko-KR','韓語'],['zh-TW','中文（台灣）'],['zh-CN','中文（大陸）'],
+            ['fr-FR','法語'],['de-DE','德語'],['es-ES','西班牙語'],['vi-VN','越南語'],
+          ].map(([v, n]) => `<option value="${v}" ${store.settings.lang === v ? 'selected' : ''}>${n}</option>`).join('')}
+        </select>
+      </div>
+      <div class="setrow">
+        <div class="lbl">語速 <span class="muted" id="rateVal">${store.settings.rate}</span></div>
+        <input type="range" id="setRate" min="0.5" max="1.5" step="0.05"
+               value="${store.settings.rate}" style="width:220px" />
+      </div>
+      <div class="setrow">
+        <div class="lbl">聽力模式顯示正面文字<div class="sub">關閉＝純聽力挑戰（預設關閉）</div></div>
+        <input type="checkbox" id="setHint" ${store.settings.showFrontInListen ? 'checked' : ''}
+               style="width:20px;height:20px;cursor:pointer" />
+      </div>
+      <div class="setrow">
+        <div class="lbl">測試發音</div>
+        <button class="btn ghost" id="testSpeak">🔊 Hello, 你好</button>
+      </div>
+    </div>
+
+    <div class="panel">
+      <h3>⚠️ 危險區域</h3>
+      <div class="setrow">
+        <div class="lbl">重置所有學習進度<div class="sub">保留卡片，清除等級與統計紀錄</div></div>
+        <button class="btn ghost" id="resetProgress">重置進度</button>
+      </div>
+      <div class="setrow">
+        <div class="lbl">清空全部資料<div class="sub">刪除所有卡片、進度與統計</div></div>
+        <button class="btn ghost" id="clearAll" style="color:#dc2626;border-color:#dc2626">全部清空</button>
+      </div>
+    </div>
+  `;
+
+  $('#expXlsx').onclick = exportExcel;
+  $('#impBtn').onclick  = () => $('#fileInput').click();
+  $('#fileInput').onchange = e => {
+    const f = e.target.files[0];
+    if (f) importExcel(f);
+    e.target.value = '';
+  };
+  $('#tplBtn').onclick = downloadTemplate;
+
+  $('#setLang').onchange = e => { store.settings.lang = e.target.value; save(); };
+  $('#setRate').oninput = e => {
+    store.settings.rate = Number(e.target.value);
+    $('#rateVal').textContent = e.target.value;
+    save();
+  };
+  $('#setHint').onchange = e => { store.settings.showFrontInListen = e.target.checked; save(); };
+  $('#testSpeak').onclick = () => speak('Hello, 你好');
+
+  $('#resetProgress').onclick = () => {
+    if (!confirm('確定重置所有學習進度嗎？此動作無法復原。')) return;
+    store.progress = {}; store.logs = [];
+    save(); render(); toast('進度已重置');
+  };
+  $('#clearAll').onclick = () => {
+    if (!confirm('確定清空全部資料嗎？所有卡片與進度都會消失。')) return;
+    if (!confirm('再次確認：這無法復原！')) return;
+    store = defaultStore();
+    save(); render(); toast('已清空');
+  };
+}
+
+/* =========================================================
+   11. Excel 匯出 / 匯入
+   ========================================================= */
+
+/* ---------- 匯出 ---------- */
+function exportExcel(){
+  if (!store.cards.length){ alert('目前沒有資料可以匯出'); return; }
+
+  // --- 工作表 1：字卡（含進度） ---
+  const cardHeader = [
+    'id','正面','背面','備註','牌組',
+    '等級','複習次數','易度','間隔(天)','下次到期','遺忘次數','最後複習','建立時間'
+  ];
+  const cardRows = [cardHeader];
+
+  store.cards.forEach(c => {
+    const p = store.progress[c.id];
+    const L = p && p.level ? LV_MAP[p.level] : null;
+    cardRows.push([
+      c.id,
+      c.front,
+      c.back,
+      c.note || '',
+      c.deck || '預設',
+      L ? L.name : '',
+      p ? p.reps : '',
+      p ? Number(p.ease.toFixed(2)) : '',
+      p ? p.interval : '',
+      p && p.due ? formatDate(p.due) : '',
+      p ? p.lapses : '',
+      p && p.last ? formatDate(p.last) : '',
+      formatDate(c.created || Date.now()),
+    ]);
+  });
+  const wsCards = XLSX.utils.aoa_to_sheet(cardRows);
+  wsCards['!cols'] = [
+    { wch: 14 },{ wch: 24 },{ wch: 24 },{ wch: 22 },{ wch: 14 },
+    { wch: 10 },{ wch: 10 },{ wch: 8 },{ wch: 10 },{ wch: 18 },
+    { wch: 10 },{ wch: 18 },{ wch: 18 },
+  ];
+
+  // --- 工作表 2：學習紀錄 ---
+  const logHeader = ['時間','正面','背面','評分','模式'];
+  const logRows = [logHeader];
+  const cardById = new Map(store.cards.map(c => [c.id, c]));
+  store.logs.slice(-10000).forEach(l => {
+    const c = cardById.get(l.id);
+    const L = LV_MAP[l.lv];
+    logRows.push([
+      formatDate(l.t),
+      c ? c.front : '',
+      c ? c.back : '',
+      L ? L.name : (l.lv || ''),
+      l.mode === 'visual' ? '視覺' : l.mode === 'listen' ? '聽力' : (l.mode || ''),
+    ]);
+  });
+  const wsLogs = XLSX.utils.aoa_to_sheet(logRows);
+  wsLogs['!cols'] = [{ wch: 18 },{ wch: 24 },{ wch: 24 },{ wch: 10 },{ wch: 10 }];
+
+  // --- 工作表 3：統計快照（唯讀參考，匯入時不讀） ---
+  const today = dateKey();
+  const todayLogs = store.logs.filter(l => dateKey(new Date(l.t)) === today);
+  const todayOk = todayLogs.filter(l => l.lv >= 3).length;
+  const statsRows = [
+    ['項目','數值'],
+    ['匯出時間', formatDate(Date.now())],
+    ['總卡片數', store.cards.length],
+    ['已學習', store.cards.filter(c => store.progress[c.id]).length],
+    ['待複習', store.cards.filter(c => isDue(c.id)).length],
+    ['今日複習次數', todayLogs.length],
+    ['今日記得率', todayLogs.length ? `${Math.round(todayOk/todayLogs.length*100)}%` : '—'],
+    ['', ''],
+    ['等級','張數'],
+    ...LEVELS.slice().reverse().map(L => [
+      L.name,
+      store.cards.filter(c => getLevel(c.id) === L.lv).length
+    ]),
+    ['未學習', store.cards.filter(c => !store.progress[c.id]).length],
+  ];
+  const wsStats = XLSX.utils.aoa_to_sheet(statsRows);
+  wsStats['!cols'] = [{ wch: 16 },{ wch: 20 }];
+
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, wsCards, 'Cards');
+  XLSX.utils.book_append_sheet(wb, wsLogs, 'Logs');
+  XLSX.utils.book_append_sheet(wb, wsStats, '統計');
+  XLSX.writeFile(wb, `字卡備份_${dateKey()}.xlsx`);
+}
+
+/* ---------- 範本 ---------- */
+function downloadTemplate(){
+  const ws = XLSX.utils.aoa_to_sheet([
+    ['正面','背面','備註','牌組'],
+    ['apple', '蘋果', '水果', '單字'],
+    ['book',  '書本', '',     '單字'],
+    ['run',   '跑',   '動詞', '單字'],
+  ]);
+  ws['!cols'] = [{ wch: 18 },{ wch: 18 },{ wch: 18 },{ wch: 12 }];
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, '字卡');
+  XLSX.writeFile(wb, '字卡範本.xlsx');
+}
+
+/* ---------- 匯入 ---------- */
+function importExcel(file){
+  const reader = new FileReader();
+  reader.onload = e => {
+    try {
+      const wb = XLSX.read(new Uint8Array(e.target.result), { type:'array', cellDates:true });
+
+      /* 1) 找到卡片工作表 */
+      let cardSheetName = null;
+      if (wb.Sheets['Cards']) cardSheetName = 'Cards';
+      else {
+        for (const name of wb.SheetNames){
+          const probe = XLSX.utils.sheet_to_json(wb.Sheets[name], { header:1, blankrows:false, defval:'' });
+          if (!probe.length) continue;
+          const head = probe[0].map(x => String(x).trim().toLowerCase());
+          const hasF = head.some(h => FRONT_KEYS.some(k => h.includes(k)));
+          const hasB = head.some(h => BACK_KEYS.some(k => h.includes(k)));
+          if (hasF && hasB){ cardSheetName = name; break; }
+        }
+      }
+      if (!cardSheetName){ alert('找不到可辨識的卡片工作表（需包含「正面」「背面」欄位）'); return; }
+
+      const rows = XLSX.utils.sheet_to_json(wb.Sheets[cardSheetName], { header:1, blankrows:false, defval:'' });
+      if (rows.length < 2){ alert('工作表沒有資料列'); return; }
+
+      const head = rows[0].map(x => String(x).trim());
+      const findIdx = (keys) => head.findIndex(h => {
+        const s = h.toLowerCase();
+        return keys.some(k => s.includes(k.toLowerCase()));
+      });
+      const idx = {
+        id:       head.findIndex(h => h.toLowerCase() === 'id'),
+        front:    findIdx(FRONT_KEYS),
+        back:     findIdx(BACK_KEYS),
+        note:     findIdx(NOTE_KEYS),
+        deck:     head.findIndex(h => h.includes('牌組') || h.toLowerCase().includes('deck')),
+        level:    head.findIndex(h => h.includes('等級') || h.toLowerCase().includes('level')),
+        reps:     head.findIndex(h => h.includes('複習次數') || h.toLowerCase().includes('reps')),
+        ease:     head.findIndex(h => h.includes('易度') || h.toLowerCase().includes('ease')),
+        interval: head.findIndex(h => h.includes('間隔') || h.toLowerCase().includes('interval')),
+        due:      head.findIndex(h => h.includes('到期') || h.toLowerCase().includes('due')),
+        lapses:   head.findIndex(h => h.includes('遺忘') || h.toLowerCase().includes('lapse')),
+        last:     head.findIndex(h => h.includes('最後') || h.toLowerCase().includes('last')),
+      };
+
+      if (idx.front < 0 || idx.back < 0){
+        alert('工作表需包含「正面」與「背面」欄位');
+        return;
+      }
+
+      const isBackup = idx.level >= 0;   // 有等級欄位 → 視為完整備份
+
+      /* 2) 詢問合併或覆蓋 */
+      let merge = false;
+      if (store.cards.length){
+        const msg = isBackup
+          ? `偵測到完整備份（含進度）。\n\n目前已有 ${store.cards.length} 張卡片。\n\n按「確定」＝合併（依 id / 內容比對，更新現有卡片）\n按「取消」＝覆蓋（清空現有資料後匯入）`
+          : `目前已有 ${store.cards.length} 張卡片。\n\n按「確定」＝合併（略過重複）\n按「取消」＝覆蓋（清空後匯入）`;
+        merge = confirm(msg);
+      }
+
+      if (!merge){
+        store.cards = [];
+        store.progress = {};
+        store.logs = [];
+      }
+
+      /* 3) 匯入卡片 */
+      const byId  = new Map(store.cards.map(c => [c.id, c]));
+      const byKey = new Map(store.cards.map(c => [c.front + '\u0001' + c.back, c]));
+
+      let added = 0, updated = 0, skipped = 0;
+
+      for (let i = 1; i < rows.length; i++){
+        const r = rows[i] || [];
+        const front = String(r[idx.front] ?? '').trim();
+        const back  = String(r[idx.back]  ?? '').trim();
+        if (!front && !back) continue;
+
+        const rowId = idx.id >= 0 ? String(r[idx.id] ?? '').trim() : '';
+        const key = front + '\u0001' + back;
+
+        let card = (rowId && byId.get(rowId)) || byKey.get(key);
+
+        if (card){
+          card.front = front;
+          card.back  = back;
+          if (idx.note >= 0) card.note = String(r[idx.note] ?? '').trim();
+          if (idx.deck >= 0){
+            const d = String(r[idx.deck] ?? '').trim();
+            if (d) card.deck = d;
+          }
+          updated++;
+        } else {
+          if (!front || !back){ skipped++; continue; }   // 非備份格式的新卡必須正反面都有
+          card = {
+            id: rowId || uid(),
+            front, back,
+            note: idx.note >= 0 ? String(r[idx.note] ?? '').trim() : '',
+            deck: idx.deck >= 0 ? (String(r[idx.deck] ?? '').trim() || '預設') : '預設',
+            created: Date.now(),
+          };
+          store.cards.push(card);
+          byId.set(card.id, card);
+          byKey.set(key, card);
+          added++;
+        }
+
+        /* 4) 若有進度欄位，一併寫入 */
+        if (idx.level >= 0){
+          const lv = parseLevel(r[idx.level]);
+          if (lv > 0){
+            const p = store.progress[card.id] || newProgress();
+            p.level    = lv;
+            if (idx.reps >= 0)     p.reps     = Number(r[idx.reps])     || 0;
+            if (idx.ease >= 0)     p.ease     = Number(r[idx.ease])     || 2.5;
+            if (idx.interval >= 0) p.interval = Number(r[idx.interval]) || 0;
+            if (idx.lapses >= 0)   p.lapses   = Number(r[idx.lapses])   || 0;
+            if (idx.last >= 0)     p.last     = parseDate(r[idx.last])  || Date.now();
+            if (idx.due >= 0)      p.due      = parseDate(r[idx.due])   || (Date.now() + p.interval * 86400000);
+            store.progress[card.id] = p;
+          }
+        }
+      }
+
+      /* 5) 匯入學習紀錄（僅備份格式，且為覆蓋模式時） */
+      if (isBackup && !merge && wb.Sheets['Logs']){
+        const lrows = XLSX.utils.sheet_to_json(wb.Sheets['Logs'], { header:1, blankrows:false, defval:'' });
+        if (lrows.length > 1){
+          const lhead = lrows[0].map(x => String(x).trim());
+          const li = {
+            t:     lhead.findIndex(h => h.includes('時間') || h.toLowerCase().includes('time')),
+            front: lhead.findIndex(h => h.includes('正面') || h.toLowerCase().includes('front')),
+            back:  lhead.findIndex(h => h.includes('背面') || h.toLowerCase().includes('back')),
+            lv:    lhead.findIndex(h => h.includes('評分') || h.includes('等級') || h.toLowerCase().includes('level')),
+            mode:  lhead.findIndex(h => h.includes('模式') || h.toLowerCase().includes('mode')),
+          };
+          const logs = [];
+          for (let i = 1; i < lrows.length; i++){
+            const r = lrows[i] || [];
+            const front = li.front >= 0 ? String(r[li.front] ?? '').trim() : '';
+            const back  = li.back  >= 0 ? String(r[li.back]  ?? '').trim() : '';
+            const card = byKey.get(front + '\u0001' + back);
+            const lv = li.lv >= 0 ? parseLevel(r[li.lv]) : 3;
+            const modeRaw = li.mode >= 0 ? String(r[li.mode] ?? '').trim() : '';
+            const mode = modeRaw === '視覺' ? 'visual'
+                       : modeRaw === '聽力' ? 'listen'
+                       : (modeRaw || '');
+            logs.push({
+              t: li.t >= 0 ? (parseDate(r[li.t]) || Date.now()) : Date.now(),
+              id: card ? card.id : '',
+              lv: lv || 3,
+              mode,
+            });
+          }
+          store.logs = logs;
+        }
+      }
+
+      save();
+      session = null;
+      render();
+
+      alert(
+        `匯入完成！\n` +
+        `新增 ${added} 張・更新 ${updated} 張` +
+        (skipped ? `・略過 ${skipped} 張` : '') +
+        (isBackup ? `\n（含進度${!merge && wb.Sheets['Logs'] ? '與學習紀錄' : ''}）` : '')
+      );
+    } catch(err){
+      console.error(err);
+      alert('匯入失敗：' + err.message);
+    }
+  };
+  reader.readAsArrayBuffer(file);
+}
+
+/* =========================================================
+   12. 事件綁定與啟動
+   ========================================================= */
+$('#tabs').addEventListener('click', e => {
+  const b = e.target.closest('button[data-tab]');
+  if (!b) return;
+  const tab = b.dataset.tab;
+  if (session && ((tab !== 'visual' && session.mode === 'visual') ||
+                  (tab !== 'listen' && session.mode === 'listen'))){
+    if (!confirm('確定要離開本次學習嗎？進度已自動儲存。')) return;
+    session = null;
+  }
+  currentTab = tab;
+  render();
+});
+
+document.addEventListener('keydown', e => {
+  if (['INPUT','TEXTAREA','SELECT'].includes(e.target.tagName)) return;
+  if (!session || session.idx >= session.queue.length) return;
+  if (e.code === 'Space'){ e.preventDefault(); flipCard(); }
+  else if (['1','2','3','4','5'].includes(e.key)){ e.preventDefault(); doGrade(Number(e.key)); }
+});
+
+render();
+</script>
+</body>
+</html>
