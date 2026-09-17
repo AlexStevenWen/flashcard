@@ -135,6 +135,11 @@
   .lvbar{flex:1;height:18px;background:var(--bg);border-radius:6px;overflow:hidden;min-width:0}
   .lvfill{height:100%;border-radius:6px;transition:width .4s}
   .lvnum{text-align:right;color:var(--muted);font-size:11px;flex-shrink:0;white-space:nowrap}
+  .lvTwoCol{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+  @media (max-width:560px){.lvTwoCol{grid-template-columns:1fr;gap:20px}}
+  .lvTwoCol h4{margin:0 0 10px;font-size:13px;font-weight:800;display:flex;align-items:center;gap:5px}
+  .lvTwoCol h4.v{color:var(--visual)}
+  .lvTwoCol h4.l{color:var(--listen)}
   .chart{display:flex;align-items:flex-end;gap:4px;height:120px;padding-top:8px}
   .cbar{flex:1;display:flex;flex-direction:column;align-items:center;gap:4px;height:100%;justify-content:flex-end;min-width:0}
   .cbar-fill{width:100%;border-radius:5px 5px 0 0;min-height:3px;transition:height .4s;opacity:.85}
@@ -201,19 +206,13 @@
   .chip.o{background:#ffedd5;color:#9a3412}
   .chip.r{background:#fee2e2;color:#991b1b}
   .chip.b{background:#dbeafe;color:#1e40af}
-  .chip.v{background:#eef2ff;color:var(--visual)}
-  .chip.l{background:#cffafe;color:#155e75}
   @media (prefers-color-scheme: dark){
     .chip.g{background:#14532d33;color:#86efac}
     .chip.y{background:#713f1233;color:#fde047}
     .chip.o{background:#7c2d1233;color:#fdba74}
     .chip.r{background:#7f1d1d33;color:#fca5a5}
     .chip.b{background:#1e3a8a33;color:#93c5fd}
-    .chip.v{background:#312e8133;color:#a5b4fc}
-    .chip.l{background:#164e6333;color:#67e8f9}
   }
-
-  /* 牌組卡片 */
   .deckToolbar{display:flex;gap:9px;flex-wrap:wrap;align-items:center;margin-bottom:12px}
   .deckGrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:12px}
   .deckCard{
@@ -262,13 +261,10 @@
   .deckProgressFill{height:100%;border-radius:999px;transition:width .5s}
   .deckProgressFill.v{background:linear-gradient(90deg,#4f46e5,#8b5cf6)}
   .deckProgressFill.l{background:linear-gradient(90deg,#0891b2,#06b6d4)}
-  .deckSolid{font-size:11px;color:var(--muted);margin-top:4px}
-  .deckSolid b{color:var(--text)}
   .deckStats{display:flex;gap:10px;flex-wrap:wrap;font-size:12px;color:var(--muted);padding-top:8px;border-top:1px solid var(--line)}
   .deckStats b{color:var(--text);font-weight:800}
   .deckActions{display:flex;gap:6px;flex-wrap:wrap}
   .deckEmpty{text-align:center;padding:30px 20px;color:var(--muted);font-size:13px}
-
   @media (max-width: 720px){ .two{grid-template-columns:1fr} }
   @media (max-width: 560px){
     .app{padding:12px 10px 80px}
@@ -357,6 +353,13 @@ const FRONT_KEYS = ['正面','front','單字','单词','word','問題','问题',
 const BACK_KEYS  = ['背面','back','翻譯','翻译','意思','答案','answer','解釋','解释',
                     '中文','定義','定义','meaning','definition','說明'];
 const NOTE_KEYS  = ['備註','备注','note','補充','补充','例句','提示'];
+
+/* 卡片穩定 key：用「正面 + \u0001 + 背面」，跨裝置唯一 */
+const SEP = '\u0001';
+function cardKey(c){
+  if (!c) return '';
+  return String(c.front || '') + SEP + String(c.back || '');
+}
 
 const $  = s => document.querySelector(s);
 const $$ = s => [...document.querySelectorAll(s)];
@@ -451,7 +454,7 @@ function getCleanFolderId(){
 function defaultStore(){
   return {
     cards: [],
-    progress: { visual: {}, listen: {} },   // 兩套獨立進度
+    progress: { visual: {}, listen: {} },
     logs: [],
     settings: {
       lang:'en-US', rate:0.9, showFrontInListen:false,
@@ -484,100 +487,147 @@ function save(){
   catch(e){ console.warn('儲存失敗', e); }
 }
 
-/* 舊版進度遷移：單一份 → 拆成視覺與聽力兩份 */
-function migrateProgress(){
-  const old = store.progress;
-  if (!old || typeof old !== 'object') {
-    store.progress = { visual:{}, listen:{} };
-    return;
-  }
-
-  // 判斷是否為舊格式：有任何 key 不是 'visual' 或 'listen'
-  const keys = Object.keys(old);
-  const hasLegacy = keys.some(k => k !== 'visual' && k !== 'listen');
-
-  if (!old.visual) old.visual = {};
-  if (!old.listen) old.listen = {};
-
-  if (hasLegacy){
-    let count = 0;
-    keys.forEach(k => {
-      if (k === 'visual' || k === 'listen') return;
-      const p = old[k];
-      // 複製到兩邊（若那邊還沒有）
-      if (!old.visual[k]) old.visual[k] = JSON.parse(JSON.stringify(p));
-      if (!old.listen[k]) old.listen[k] = JSON.parse(JSON.stringify(p));
-      delete old[k];
-      count++;
-    });
-    console.log(`[遷移] 已將 ${count} 筆舊進度拆為視覺與聽力兩套`);
-  }
-
-  store.progress = old;
-  save();
-}
-migrateProgress();
-
 /* =========================================================
-   3. 進度存取（兩模式獨立）
+   3. 進度存取（用卡片內容當 key，跨裝置穩定）
    ========================================================= */
 function newProgress(){
-  return { level:0, ease:2.5, interval:0, due:0, reps:0, lapses:0, last:0 };
+  return { level:0, ease:2.5, interval:0, due:0, reps:0, lapses:0, last:0, history:[] };
 }
-function getProgress(cardId, mode){
-  const bag = store.progress[mode];
-  return bag ? bag[cardId] : undefined;
+function getProgress(key, mode){
+  const bag = store.progress && store.progress[mode];
+  return bag ? bag[key] : undefined;
 }
-function setProgress(cardId, mode, p){
+function setProgress(key, mode, p){
+  if (!store.progress) store.progress = { visual:{}, listen:{} };
   if (!store.progress[mode]) store.progress[mode] = {};
-  store.progress[mode][cardId] = p;
+  store.progress[mode][key] = p;
 }
-function getLevel(cardId, mode){
-  const p = getProgress(cardId, mode);
+function delProgress(key, mode){
+  if (store.progress && store.progress[mode]) delete store.progress[mode][key];
+}
+function getLevel(key, mode){
+  const p = getProgress(key, mode);
   return p ? p.level : 0;
 }
-function isDue(cardId, mode){
-  const p = getProgress(cardId, mode);
+function isDue(key, mode){
+  const p = getProgress(key, mode);
   return !p || p.due <= Date.now();
 }
-function hasAnyProgress(cardId){
-  return !!(getProgress(cardId, 'visual') || getProgress(cardId, 'listen'));
+function hasProgress(key, mode){
+  return !!getProgress(key, mode);
 }
-function getMaxLevel(cardId){
-  const v = getLevel(cardId, 'visual');
-  const l = getLevel(cardId, 'listen');
-  if (v === 0 && l === 0) return 0;
-  return Math.max(v, l);
-}
-function gradeCard(cardId, level, mode){
-  const p = getProgress(cardId, mode) || newProgress();
+
+/* 評分：記錄最近 5 次，避免手誤 */
+function gradeCard(key, level, mode){
+  const p = getProgress(key, mode) || newProgress();
+
+  // 記錄最近 5 次評分（新的在前）
+  if (!Array.isArray(p.history)) p.history = [];
+  p.history.unshift(level);
+  if (p.history.length > 5) p.history = p.history.slice(0, 5);
+
+  // 用最近 5 次平均決定「實際等級」
+  const recent = p.history;
+  const avg = recent.reduce((a, b) => a + b, 0) / recent.length;
+  let effectiveLevel = Math.round(avg);
+
+  // 不能高於使用者剛按的分數（避免歷史高分讓一次低分也跳級）
+  if (effectiveLevel > level) effectiveLevel = level;
+  // 不能低於 1
+  if (effectiveLevel < 1) effectiveLevel = 1;
+
+  // 精熟標準：需要 5 次紀錄 且 平均 >= 4.5
+  if (effectiveLevel === 5){
+    if (recent.length < 5 || avg < 4.5){
+      effectiveLevel = 4;
+    }
+  }
+
   p.reps++;
   p.last = Date.now();
   if (level === 1) p.lapses++;
 
-  if (level >= 4)      p.ease = Math.min(3.0, p.ease + 0.08);
-  else if (level === 2) p.ease = Math.max(1.3, p.ease - 0.15);
-  else if (level === 1) p.ease = Math.max(1.3, p.ease - 0.30);
+  // 用「實際等級」更新 ease 與 interval
+  if (effectiveLevel >= 4)      p.ease = Math.min(3.0, p.ease + 0.08);
+  else if (effectiveLevel === 2) p.ease = Math.max(1.3, p.ease - 0.15);
+  else if (effectiveLevel === 1) p.ease = Math.max(1.3, p.ease - 0.30);
 
-  const base = (LV_MAP[level] || LV_MAP[1]).days;
-  const days = level === 1 ? 0 : Math.max(1, Math.round(base * (p.ease / 2.5)));
+  const base = (LV_MAP[effectiveLevel] || LV_MAP[1]).days;
+  const days = effectiveLevel === 1 ? 0 : Math.max(1, Math.round(base * (p.ease / 2.5)));
 
-  p.level = level;
+  p.level = effectiveLevel;
   p.interval = days;
-  p.due = level === 1
+  p.due = effectiveLevel === 1
     ? Date.now() + 10 * 60 * 1000
     : Date.now() + days * 86400000;
 
-  setProgress(cardId, mode, p);
+  setProgress(key, mode, p);
 
-  store.logs.push({ t: Date.now(), id: cardId, lv: level, mode });
+  store.logs.push({ t: Date.now(), key, lv: level, eff: effectiveLevel, mode });
   if (store.logs.length > 30000) store.logs = store.logs.slice(-20000);
   save();
   scheduleUpload();
 }
 
 /* =========================================================
-   4. 雲端資料夾
+   4. 舊資料遷移（用卡片 id → 卡片內容 key）
+   ========================================================= */
+function migrateProgressKeys(){
+  if (!store.progress) store.progress = { visual:{}, listen:{} };
+  if (!store.progress.visual) store.progress.visual = {};
+  if (!store.progress.listen) store.progress.listen = {};
+
+  if (!store.cards || !store.cards.length) return;
+
+  const idToKey = new Map();
+  store.cards.forEach(c => {
+    idToKey.set(c.id, cardKey(c));
+  });
+
+  let migrated = 0;
+
+  ['visual', 'listen'].forEach(mode => {
+    const bag = store.progress[mode];
+    const newBag = {};
+    Object.keys(bag).forEach(k => {
+      if (k.indexOf(SEP) >= 0){
+        newBag[k] = bag[k];
+      } else {
+        const newKey = idToKey.get(k);
+        if (newKey){
+          newBag[newKey] = bag[k];
+          migrated++;
+        } else {
+          newBag[k] = bag[k]; // 找不到對應卡片，保留
+        }
+      }
+    });
+    store.progress[mode] = newBag;
+  });
+
+  // logs 遷移
+  store.logs.forEach(l => {
+    if (l.key === undefined){
+      if (l.id !== undefined){
+        if (l.id.indexOf(SEP) >= 0){
+          l.key = l.id;
+        } else {
+          const newKey = idToKey.get(l.id);
+          l.key = newKey || l.id;
+        }
+        delete l.id;
+      }
+    }
+  });
+
+  if (migrated > 0){
+    console.log(`[遷移] 已將 ${migrated} 筆進度改用卡片內容作為 key（跨裝置同步）`);
+    save();
+  }
+}
+
+/* =========================================================
+   5. 雲端資料夾
    ========================================================= */
 const cloudState = {
   connected: false, syncing: false, lastSync: 0,
@@ -622,6 +672,7 @@ async function syncFromCloud(silent){
 
     applyDecks(decks);
 
+    // 讀進度
     try {
       const metaRes = await fetch(`${cloudUrl}${sep}action=meta&folderId=${encodeURIComponent(folderId)}&_=${Date.now()}`);
       if (metaRes.ok){
@@ -629,17 +680,18 @@ async function syncFromCloud(silent){
         if (metaData.ok && metaData.data){
           const parsed = JSON.parse(metaData.data);
           if (parsed.progress){
-            // 兼容舊備份（單一份進度）與新備份（兩套）
             const pr = parsed.progress;
             if (pr.visual || pr.listen){
+              // 新格式：兩套
+              // 但 key 可能是舊的 uid，先存著晚點遷移
               store.progress.visual = pr.visual || {};
               store.progress.listen = pr.listen || {};
             } else {
-              // 舊備份：全部搬到兩邊
+              // 舊格式：單一份，複製到兩邊
               const v = {}, l = {};
-              Object.keys(pr).forEach(id => {
-                v[id] = JSON.parse(JSON.stringify(pr[id]));
-                l[id] = JSON.parse(JSON.stringify(pr[id]));
+              Object.keys(pr).forEach(k => {
+                v[k] = JSON.parse(JSON.stringify(pr[k]));
+                l[k] = JSON.parse(JSON.stringify(pr[k]));
               });
               store.progress.visual = v;
               store.progress.listen = l;
@@ -649,6 +701,9 @@ async function syncFromCloud(silent){
         }
       }
     } catch(e){ console.warn('讀取進度失敗', e); }
+
+    // 卡片同步完成後，再遷移一次（把 uid key 轉成卡片內容 key）
+    migrateProgressKeys();
 
     cloudState.connected = true;
     cloudState.lastSync = Date.now();
@@ -711,11 +766,11 @@ function parseCloudFile(file){
 }
 
 function applyDecks(decks){
-  const byKey = new Map(store.cards.map(c => [c.front + '\u0001' + c.back, c]));
+  const byKey = new Map(store.cards.map(c => [cardKey(c), c]));
   const newCards = [];
   decks.forEach(({ cards }) => {
     cards.forEach(c => {
-      const key = c.front + '\u0001' + c.back;
+      const key = cardKey(c);
       const exist = byKey.get(key);
       if (exist){
         exist.note = c.note;
@@ -765,7 +820,7 @@ function flushUpload(){
 }
 
 /* =========================================================
-   5. 語音
+   6. 語音
    ========================================================= */
 let voices = [];
 function loadVoices(){ voices = window.speechSynthesis ? speechSynthesis.getVoices() : []; }
@@ -799,22 +854,22 @@ function speak(text, lang){
 }
 
 /* =========================================================
-   6. 佇列（依模式）
+   7. 佇列
    ========================================================= */
 function buildQueue(opts, mode){
   let list = store.cards.slice();
   if (opts.deck && opts.deck !== 'all')
     list = list.filter(c => (c.deck || '預設') === opts.deck);
 
-  if (opts.scope === 'due')       list = list.filter(c => isDue(c.id, mode));
-  else if (opts.scope === 'new')  list = list.filter(c => !getProgress(c.id, mode));
+  if (opts.scope === 'due')       list = list.filter(c => isDue(cardKey(c), mode));
+  else if (opts.scope === 'new')  list = list.filter(c => !hasProgress(cardKey(c), mode));
   else if (opts.scope === 'weak') list = list.filter(c => {
-    const l = getLevel(c.id, mode);
+    const l = getLevel(cardKey(c), mode);
     return l > 0 && l <= 2;
   });
 
   list.sort((a, b) => {
-    const pa = getProgress(a.id, mode), pb = getProgress(b.id, mode);
+    const pa = getProgress(cardKey(a), mode), pb = getProgress(cardKey(b), mode);
     const da = pa ? pa.due : 0, db = pb ? pb.due : 0;
     if (da !== db) return da - db;
     return Math.random() - 0.5;
@@ -825,11 +880,11 @@ function buildQueue(opts, mode){
 }
 
 /* =========================================================
-   7. 主渲染
+   8. 主渲染
    ========================================================= */
 let currentTab = 'browse';
 let session = null;
-let statsMode = 'visual';   // 'visual' | 'listen'  （統計頁只看當前模式）
+let statsMode = 'visual';
 let cardStatsDeck = 'all';
 let cardStatsLevel = 'all';
 let cardStatsSort = 'due';
@@ -838,8 +893,8 @@ let deckSort = 'priority';
 
 function updateHeader(){
   const total  = store.cards.length;
-  const dueV   = store.cards.filter(c => isDue(c.id, 'visual')).length;
-  const dueL   = store.cards.filter(c => isDue(c.id, 'listen')).length;
+  const dueV   = store.cards.filter(c => isDue(cardKey(c), 'visual')).length;
+  const dueL   = store.cards.filter(c => isDue(cardKey(c), 'listen')).length;
   const today  = dateKey();
   const todayN = store.logs.filter(l => dateKey(new Date(l.t)) === today).length;
 
@@ -873,16 +928,18 @@ function render(){
 }
 
 /* =========================================================
-   8. 字卡瀏覽
+   9. 字卡瀏覽
    ========================================================= */
 function filteredCards(){
   const q = (store.ui.q || '').trim().toLowerCase();
   return store.cards.filter(c => {
     if (store.ui.deck !== 'all' && (c.deck || '預設') !== store.ui.deck) return false;
     if (store.ui.level !== 'all'){
-      // 依較高的一個模式判斷
-      const lvMax = getMaxLevel(c.id);
-      if (String(lvMax) !== store.ui.level) return false;
+      const key = cardKey(c);
+      const v = getLevel(key, 'visual');
+      const l = getLevel(key, 'listen');
+      const max = Math.max(v, l);
+      if (String(max) !== store.ui.level) return false;
     }
     if (q){
       const hay = `${c.front} ${c.back} ${c.note || ''}`.toLowerCase();
@@ -941,8 +998,9 @@ function renderGrid(){
   }
 
   grid.innerHTML = list.map(c => {
-    const lvV = getLevel(c.id, 'visual');
-    const lvL = getLevel(c.id, 'listen');
+    const key = cardKey(c);
+    const lvV = getLevel(key, 'visual');
+    const lvL = getLevel(key, 'listen');
     const LV = lvV ? LV_MAP[lvV] : null;
     const LL = lvL ? LV_MAP[lvL] : null;
     const styleV = LV ? `background:${LV.color}1f;color:${LV.color}` : '';
@@ -976,13 +1034,14 @@ function renderGrid(){
     const id = box.dataset.id;
     const card = store.cards.find(c => c.id === id);
     if (!card) return;
+    const key = cardKey(card);
     const btn = e.target.closest('button');
     if (btn){
       if (btn.dataset.act === 'speak') speak(card.front);
       if (btn.dataset.act === 'reset'){
         if (!confirm('重置這張卡？（視覺與聽力進度都會清除）')) return;
-        delete store.progress.visual[id];
-        delete store.progress.listen[id];
+        delProgress(key, 'visual');
+        delProgress(key, 'listen');
         save(); scheduleUpload();
         renderGrid(); updateHeader();
         toast('已重置這張卡');
@@ -994,7 +1053,7 @@ function renderGrid(){
 }
 
 /* =========================================================
-   9. 學習模式
+   10. 學習模式
    ========================================================= */
 function renderStudyUI(mode){
   if (session && session.mode === mode){
@@ -1009,7 +1068,7 @@ function drawSetup(mode){
   const isListen = mode === 'listen';
   const M = MODE_META[mode];
   const decks = [...new Set(store.cards.map(c => c.deck || '預設'))];
-  const dueCount = store.cards.filter(c => isDue(c.id, mode)).length;
+  const dueCount = store.cards.filter(c => isDue(cardKey(c), mode)).length;
   $('#view').innerHTML = `
     <div class="panel setup">
       <h2>${M.icon} ${M.name}翻卡</h2>
@@ -1019,7 +1078,7 @@ function drawSetup(mode){
           : '看正面 → 腦中回想答案 → 翻卡核對 → 自我評價'}
       </p>
       <div class="hintBox" style="margin-top:12px">
-        📌 這個模式的進度是獨立的，不會影響另一個模式的等級。<br>
+        📌 這個模式的進度是獨立的，不會影響另一個模式。<br>
         目前 ${M.name}模式待複習：<b>${dueCount}</b> 張
       </div>
       <div class="setup-row">
@@ -1150,14 +1209,15 @@ function doGrade(lv){
   const card = s.queue[s.idx];
   if (!card) return;
 
-  gradeCard(card.id, lv, s.mode);
+  const key = cardKey(card);
+  gradeCard(key, lv, s.mode);
   s.done++;
   if (lv >= 3) s.ok++;
 
   if (lv === 1){
-    const r = s.repeats[card.id] || 0;
+    const r = s.repeats[key] || 0;
     if (r < 1){
-      s.repeats[card.id] = r + 1;
+      s.repeats[key] = r + 1;
       s.queue.push(card);
       s.total++;
     }
@@ -1198,7 +1258,7 @@ function drawDone(mode){
 }
 
 /* =========================================================
-   10. 統計
+   11. 統計
    ========================================================= */
 function logsByMode(mode){
   return store.logs.filter(l => l.mode === mode);
@@ -1219,10 +1279,12 @@ function calcStats(logs){
 function buildLogIndex(){
   const map = new Map();
   store.logs.forEach(l => {
-    let s = map.get(l.id);
+    const k = l.key || l.id;
+    if (!k) return;
+    let s = map.get(k);
     if (!s){
       s = { vTotal:0, vOk:0, lTotal:0, lOk:0 };
-      map.set(l.id, s);
+      map.set(k, s);
     }
     if (l.mode === 'visual'){ s.vTotal++; if (l.lv >= 3) s.vOk++; }
     else if (l.mode === 'listen'){ s.lTotal++; if (l.lv >= 3) s.lOk++; }
@@ -1230,7 +1292,6 @@ function buildLogIndex(){
   return map;
 }
 
-/* 依模式與牌組彙總 */
 function buildDeckDetail(){
   const map = {};
   store.cards.forEach(c => {
@@ -1242,10 +1303,11 @@ function buildDeckDetail(){
     };
     const s = map[d];
     s.total++;
+    const key = cardKey(c);
 
     ['visual', 'listen'].forEach(m => {
       const bag = s[m];
-      const p = getProgress(c.id, m);
+      const p = getProgress(key, m);
       const lv = p ? p.level : 0;
       bag.lv[lv]++;
       if (lv > 0) bag.learned++;
@@ -1270,8 +1332,6 @@ function buildDeckDetail(){
     };
     const V = calcSide(s.visual);
     const L = calcSide(s.listen);
-
-    // 綜合優先度 = 兩邊精熟率取較低者
     const overallRate = Math.min(V.masteryRate, L.masteryRate);
 
     let tag, tagCls, priority;
@@ -1289,21 +1349,28 @@ function buildDeckDetail(){
 }
 
 function renderStats(){
-  const total   = store.cards.length;
-
+  const total = store.cards.length;
   const M = MODE_META[statsMode];
   const modeLogs = logsByMode(statsMode);
   const S = calcStats(modeLogs);
   const cmpV = calcStats(logsByMode('visual'));
   const cmpL = calcStats(logsByMode('listen'));
 
-  // 當前模式的等級分布
-  const counts = { 0:0, 1:0, 2:0, 3:0, 4:0, 5:0 };
-  store.cards.forEach(c => { counts[getLevel(c.id, statsMode)]++; });
+  // 兩模式等級分布
+  const countsV = { 0:0, 1:0, 2:0, 3:0, 4:0, 5:0 };
+  const countsL = { 0:0, 1:0, 2:0, 3:0, 4:0, 5:0 };
+  store.cards.forEach(c => {
+    const key = cardKey(c);
+    countsV[getLevel(key, 'visual')]++;
+    countsL[getLevel(key, 'listen')]++;
+  });
+
+  // 當前模式 KPI
+  const counts = statsMode === 'visual' ? countsV : countsL;
   const learned = total - counts[0];
   const masteryRate = total ? Math.round(counts[5] / total * 100) : 0;
   const solidRate   = total ? Math.round((counts[5] + counts[4]) / total * 100) : 0;
-  const dueCount    = store.cards.filter(c => isDue(c.id, statsMode)).length;
+  const dueCount    = store.cards.filter(c => isDue(cardKey(c), statsMode)).length;
 
   const days = [];
   for (let i = 13; i >= 0; i--){
@@ -1324,13 +1391,12 @@ function renderStats(){
   }
   const maxStack = Math.max(1, ...stackDays.map(d => d.v + d.l));
 
-  // 未來 7 天到期（依當前模式）
   const future = [];
   for (let i = 0; i < 7; i++){
     const start = new Date(); start.setHours(0,0,0,0); start.setDate(start.getDate() + i);
     const end = new Date(start); end.setDate(end.getDate() + 1);
     const n = store.cards.filter(c => {
-      const p = getProgress(c.id, statsMode);
+      const p = getProgress(cardKey(c), statsMode);
       if (!p) return i === 0;
       return p.due >= start.getTime() && p.due < end.getTime();
     }).length;
@@ -1338,7 +1404,6 @@ function renderStats(){
   }
   const maxFut = Math.max(1, ...future.map(f => f.n));
 
-  /* --- 牌組 --- */
   let deckList = buildDeckDetail();
   if (deckSort === 'priority')     deckList.sort((a, b) => a.overallRate - b.overallRate || b.total - a.total);
   else if (deckSort === 'masteryV') deckList.sort((a, b) => a.visualStats.masteryRate - b.visualStats.masteryRate || b.total - a.total);
@@ -1346,8 +1411,27 @@ function renderStats(){
   else if (deckSort === 'count')    deckList.sort((a, b) => b.total - a.total);
   else if (deckSort === 'name')     deckList.sort((a, b) => a.name.localeCompare(b.name, 'zh-Hant'));
 
-  /* --- 個別字卡 --- */
   const logIndex = buildLogIndex();
+
+  // 渲染等級分布欄
+  const renderLvCol = (counts, mode) => {
+    const M = MODE_META[mode];
+    return `
+      <div>
+        <h4 class="${mode === 'visual' ? 'v' : 'l'}">${M.icon} ${M.name}</h4>
+        ${[5,4,3,2,1,0].map(lv => {
+          const L = lv ? LV_MAP[lv] : { name:'未學習', color: UNLEARNED_COLOR };
+          const n = counts[lv];
+          const pct = total ? (n / total * 100) : 0;
+          return `<div class="lvrow">
+            <div class="lvname" style="color:${L.color}">${L.name}</div>
+            <div class="lvbar"><div class="lvfill" style="width:${pct.toFixed(1)}%;background:${L.color}"></div></div>
+            <div class="lvnum">${n} · ${pct.toFixed(0)}%</div>
+          </div>`;
+        }).join('')}
+      </div>
+    `;
+  };
 
   $('#view').innerHTML = `
     <div class="modeSwitch" id="modeSwitch">
@@ -1356,7 +1440,7 @@ function renderStats(){
     </div>
 
     <div class="hintBox" style="margin-bottom:13px">
-      📌 目前顯示 <b>${M.name}模式</b> 的統計。切換上方按鈕可看另一模式，兩邊進度完全獨立。
+      📌 切換上方按鈕會改變下方 <b>KPI、等級分布、14 天圖表、未來到期、個別字卡</b> 的顯示模式。牌組卡片則同時顯示兩邊。
     </div>
 
     <div class="kpis">
@@ -1366,6 +1450,15 @@ function renderStats(){
       <div class="kpi"><div class="kpi-v">${masteryRate}%</div><div class="kpi-l">${M.name}精熟率</div></div>
       <div class="kpi"><div class="kpi-v">${solidRate}%</div><div class="kpi-l">熟+精熟率</div></div>
       <div class="kpi"><div class="kpi-v">${S.todayAcc}%</div><div class="kpi-l">今日記得率</div></div>
+    </div>
+
+    <!-- 等級分布：兩模式同時顯示 -->
+    <div class="panel" style="margin-bottom:13px">
+      <h3>📊 等級分布（兩模式對照）</h3>
+      <div class="lvTwoCol">
+        ${renderLvCol(countsV, 'visual')}
+        ${renderLvCol(countsL, 'listen')}
+      </div>
     </div>
 
     <!-- 牌組卡片 -->
@@ -1382,21 +1475,6 @@ function renderStats(){
         <span class="muted" style="font-size:12px">共 ${deckList.length} 個牌組</span>
       </div>
       ${deckList.length ? `<div class="deckGrid" id="deckGrid"></div>` : '<div class="deckEmpty">尚無牌組資料</div>'}
-    </div>
-
-    <!-- 等級分布（依當前模式） -->
-    <div class="panel" style="margin-bottom:13px">
-      <h3>📊 等級分布（${M.name}模式）</h3>
-      ${[5,4,3,2,1,0].map(lv => {
-        const L = lv ? LV_MAP[lv] : { name:'未學習', color: UNLEARNED_COLOR };
-        const n = counts[lv];
-        const pct = total ? (n / total * 100) : 0;
-        return `<div class="lvrow">
-          <div class="lvname" style="color:${L.color}">${L.name}</div>
-          <div class="lvbar"><div class="lvfill" style="width:${pct.toFixed(1)}%;background:${L.color}"></div></div>
-          <div class="lvnum">${n} 張 · ${pct.toFixed(0)}%</div>
-        </div>`;
-      }).join('')}
     </div>
 
     <!-- 兩模式對比 -->
@@ -1421,7 +1499,6 @@ function renderStats(){
       </div>
     </div>
 
-    <!-- 14 天圖表 -->
     <div class="two" style="margin-bottom:13px">
       <div class="panel">
         <h3>📅 近 14 天複習量 · ${M.icon} ${M.name}</h3>
@@ -1455,7 +1532,6 @@ function renderStats(){
       </div>
     </div>
 
-    <!-- 未來到期 -->
     <div class="panel" style="margin-bottom:13px">
       <h3>⏰ 未來 7 天到期（${M.name}）</h3>
       <div class="chart">
@@ -1467,7 +1543,6 @@ function renderStats(){
       </div>
     </div>
 
-    <!-- 個別字卡 -->
     <div class="panel" style="margin-bottom:13px">
       <h3>🃏 個別字卡統計</h3>
       ${total ? `
@@ -1494,7 +1569,6 @@ function renderStats(){
     </div>
   `;
 
-  /* 模式切換 */
   $('#modeSwitch').onclick = e => {
     const b = e.target.closest('button[data-m]');
     if (!b) return;
@@ -1503,7 +1577,6 @@ function renderStats(){
     renderStats();
   };
 
-  /* 牌組卡片 */
   if (deckList.length){
     const grid = $('#deckGrid');
     grid.innerHTML = deckList.map(d => {
@@ -1521,7 +1594,6 @@ function renderStats(){
             <div class="deckName">${esc(d.name)}</div>
             <span class="deckTag ${d.tagCls}">${d.tag}</span>
           </div>
-
           <div class="deckModeRow">
             <div class="deckModeBox v">
               <div class="deckModeLabel">
@@ -1534,7 +1606,6 @@ function renderStats(){
               </div>
               <div class="deckModeSub">已學 ${(V.learnedRate*100).toFixed(0)}% · 待複習 ${d.visual.due}</div>
             </div>
-
             <div class="deckModeBox l">
               <div class="deckModeLabel">
                 <span class="mi l">🎧 聽力</span>
@@ -1547,15 +1618,13 @@ function renderStats(){
               <div class="deckModeSub">已學 ${(L.learnedRate*100).toFixed(0)}% · 待複習 ${d.listen.due}</div>
             </div>
           </div>
-
           <div class="deckStats">
             <span>📦 <b>${d.total}</b> 張</span>
             <span>🔁 平均 <b>${((V.avgReps + L.avgReps)/2).toFixed(1)}</b> 次</span>
           </div>
-
           <div class="deckActions">
-            <button class="miniBtn" data-deck-progress-v="${esc(d.name)}">↺ 清視覺進度</button>
-            <button class="miniBtn" data-deck-progress-l="${esc(d.name)}">↺ 清聽力進度</button>
+            <button class="miniBtn" data-deck-progress-v="${esc(d.name)}">↺ 清視覺</button>
+            <button class="miniBtn" data-deck-progress-l="${esc(d.name)}">↺ 清聽力</button>
             <button class="miniBtn" data-deck-progress-all="${esc(d.name)}">↺ 清兩邊</button>
             <button class="miniBtn danger" data-deck-clear="${esc(d.name)}">🗑 刪除牌組</button>
           </div>
@@ -1577,11 +1646,9 @@ function renderStats(){
     });
   }
 
-  /* 牌組排序 */
   const sortSel = $('#deckSortSel');
   if (sortSel) sortSel.onchange = e => { deckSort = e.target.value; renderStats(); };
 
-  /* 個別字卡 */
   if (total){
     cardStatsLimit = 200;
 
@@ -1594,15 +1661,16 @@ function renderStats(){
         list = list.filter(c => (c.deck || '預設') === cardStatsDeck);
       if (cardStatsLevel !== 'all'){
         if (cardStatsLevel === '0')
-          list = list.filter(c => !getProgress(c.id, statsMode));
+          list = list.filter(c => !hasProgress(cardKey(c), statsMode));
         else
-          list = list.filter(c => getLevel(c.id, statsMode) === Number(cardStatsLevel));
+          list = list.filter(c => getLevel(cardKey(c), statsMode) === Number(cardStatsLevel));
       }
 
       list.sort((a, b) => {
-        const pa = getProgress(a.id, statsMode), pb = getProgress(b.id, statsMode);
-        const sa = logIndex.get(a.id) || { vTotal:0, vOk:0, lTotal:0, lOk:0 };
-        const sb = logIndex.get(b.id) || { vTotal:0, vOk:0, lTotal:0, lOk:0 };
+        const ka = cardKey(a), kb = cardKey(b);
+        const pa = getProgress(ka, statsMode), pb = getProgress(kb, statsMode);
+        const sa = logIndex.get(ka) || { vTotal:0, vOk:0, lTotal:0, lOk:0 };
+        const sb = logIndex.get(kb) || { vTotal:0, vOk:0, lTotal:0, lOk:0 };
 
         if (cardStatsSort === 'due'){
           const da = pa ? pa.due : 0, db = pb ? pb.due : 0;
@@ -1610,12 +1678,12 @@ function renderStats(){
         }
         if (cardStatsSort === 'reps') return (pb ? pb.reps : 0) - (pa ? pa.reps : 0);
         if (cardStatsSort === 'wrong'){
-          const saTotal = statsMode === 'visual' ? sa.vTotal : sa.lTotal;
-          const saOk = statsMode === 'visual' ? sa.vOk : sa.lOk;
-          const sbTotal = statsMode === 'visual' ? sb.vTotal : sb.lTotal;
-          const sbOk = statsMode === 'visual' ? sb.vOk : sb.lOk;
-          const wa = saTotal ? (saTotal - saOk) / saTotal : 0;
-          const wb = sbTotal ? (sbTotal - sbOk) / sbTotal : 0;
+          const saT = statsMode === 'visual' ? sa.vTotal : sa.lTotal;
+          const saO = statsMode === 'visual' ? sa.vOk : sa.lOk;
+          const sbT = statsMode === 'visual' ? sb.vTotal : sb.lTotal;
+          const sbO = statsMode === 'visual' ? sb.vOk : sb.lOk;
+          const wa = saT ? (saT - saO) / saT : 0;
+          const wb = sbT ? (sbT - sbO) / sbT : 0;
           return wb - wa;
         }
         if (cardStatsSort === 'gap'){
@@ -1626,8 +1694,8 @@ function renderStats(){
           return Math.abs(lb - vb) - Math.abs(la - va);
         }
         if (cardStatsSort === 'lv'){
-          const la = getLevel(a.id, statsMode) || 99;
-          const lb = getLevel(b.id, statsMode) || 99;
+          const la = getLevel(ka, statsMode) || 99;
+          const lb = getLevel(kb, statsMode) || 99;
           return la - lb;
         }
         if (cardStatsSort === 'front')
@@ -1660,19 +1728,18 @@ function renderStats(){
             </thead>
             <tbody>
               ${show.map(c => {
-                const lvV = getLevel(c.id, 'visual');
-                const lvL = getLevel(c.id, 'listen');
+                const key = cardKey(c);
+                const lvV = getLevel(key, 'visual');
+                const lvL = getLevel(key, 'listen');
                 const LV = lvV ? LV_MAP[lvV] : null;
                 const LL = lvL ? LV_MAP[lvL] : null;
-                const pV = getProgress(c.id, 'visual') || {};
-                const pL = getProgress(c.id, 'listen') || {};
-                const s = logIndex.get(c.id) || { vTotal:0, vOk:0, lTotal:0, lOk:0 };
+                const pV = getProgress(key, 'visual') || {};
+                const pL = getProgress(key, 'listen') || {};
+                const s = logIndex.get(key) || { vTotal:0, vOk:0, lTotal:0, lOk:0 };
                 const vAcc = s.vTotal ? Math.round(s.vOk / s.vTotal * 100) : null;
                 const lAcc = s.lTotal ? Math.round(s.lOk / s.lTotal * 100) : null;
-
                 const chipV = lvV === 5 ? 'b' : lvV === 4 ? 'g' : lvV === 3 ? 'y' : lvV === 2 ? 'o' : lvV === 1 ? 'r' : '';
                 const chipL = lvL === 5 ? 'b' : lvL === 4 ? 'g' : lvL === 3 ? 'y' : lvL === 2 ? 'o' : lvL === 1 ? 'r' : '';
-
                 return `<tr style="border-top:1px solid var(--line)">
                   <td style="padding:9px 6px;font-weight:700;max-width:180px;word-break:break-word">${esc(c.front)}</td>
                   <td style="padding:9px 6px;max-width:180px;word-break:break-word;color:var(--muted)">${esc(c.back)}</td>
@@ -1725,26 +1792,25 @@ function clearDeckProgress(deckName, mode){
   const modeLabel = mode === 'both' ? '視覺與聽力' : MODE_META[mode].name;
   if (!confirm(`清空「${deckName}」的${modeLabel}學習進度？\n\n卡片會保留，只清除等級與複習紀錄。`)) return;
 
-  const ids = new Set(cards.map(c => c.id));
+  const keys = cards.map(c => cardKey(c));
   const modes = mode === 'both' ? ['visual', 'listen'] : [mode];
 
   modes.forEach(m => {
-    ids.forEach(id => {
-      if (store.progress[m]) delete store.progress[m][id];
-    });
+    keys.forEach(k => delProgress(k, m));
   });
 
   if (mode === 'both'){
-    store.logs = store.logs.filter(l => !ids.has(l.id));
+    const keySet = new Set(keys);
+    store.logs = store.logs.filter(l => !keySet.has(l.key || l.id));
   } else {
-    store.logs = store.logs.filter(l => !(ids.has(l.id) && l.mode === mode));
+    const keySet = new Set(keys);
+    store.logs = store.logs.filter(l => !(keySet.has(l.key || l.id) && l.mode === mode));
   }
 
   save(); scheduleUpload();
   render(); toast(`已清空「${deckName}」的${modeLabel}進度`);
 }
 
-/* ---------- 刪除整份牌組 ---------- */
 function clearDeckFull(deckName){
   const cards = store.cards.filter(c => (c.deck || '預設') === deckName);
   if (!cards.length) return;
@@ -1755,19 +1821,21 @@ function clearDeckFull(deckName){
 
   if (!confirm(msg)) return;
 
-  const ids = new Set(cards.map(c => c.id));
-  store.cards = store.cards.filter(c => !ids.has(c.id));
-  ids.forEach(id => {
-    delete store.progress.visual[id];
-    delete store.progress.listen[id];
+  const keys = cards.map(c => cardKey(c));
+  const keySet = new Set(keys);
+  const idSet = new Set(cards.map(c => c.id));
+  store.cards = store.cards.filter(c => !idSet.has(c.id));
+  keys.forEach(k => {
+    delProgress(k, 'visual');
+    delProgress(k, 'listen');
   });
-  store.logs = store.logs.filter(l => !ids.has(l.id));
+  store.logs = store.logs.filter(l => !keySet.has(l.key || l.id));
   save(); scheduleUpload();
   render(); toast(`已刪除「${deckName}」`);
 }
 
 /* =========================================================
-   11. 設定
+   12. 設定
    ========================================================= */
 function renderSettings(){
   const ready = cloudReady();
@@ -1806,8 +1874,8 @@ function renderSettings(){
         <div class="setrow" style="border-bottom:0">
           <div class="sub" style="font-size:12px;line-height:1.7">
             ☁️ 卡片：從雲端資料夾下載（.xlsx / .csv）<br>
-            💾 進度：視覺與聽力兩套進度都會自動上傳到 <code>_progress.json</code><br>
-            📌 換裝置只要貼上同樣的網址與資料夾 ID，進度立刻接續
+            💾 進度：以「正面+背面」為 key，換裝置也能正確接續<br>
+            📌 兩套進度（視覺/聽力）都自動上傳到 <code>_progress.json</code>
           </div>
         </div>
       ` : `
@@ -2026,7 +2094,7 @@ function renderSettings(){
 }
 
 /* =========================================================
-   12. Excel 匯出 / 匯入（支援兩套進度）
+   13. Excel 匯出 / 匯入
    ========================================================= */
 function exportExcel(){
   if (!store.cards.length){ alert('目前沒有資料可以匯出'); return; }
@@ -2039,8 +2107,9 @@ function exportExcel(){
   ];
   const cardRows = [cardHeader];
   store.cards.forEach(c => {
-    const pV = getProgress(c.id, 'visual');
-    const pL = getProgress(c.id, 'listen');
+    const key = cardKey(c);
+    const pV = getProgress(key, 'visual');
+    const pL = getProgress(key, 'listen');
     const LV = pV && pV.level ? LV_MAP[pV.level] : null;
     const LL = pL && pL.level ? LV_MAP[pL.level] : null;
     cardRows.push([
@@ -2070,21 +2139,23 @@ function exportExcel(){
     { wch: 18 },
   ];
 
-  const logHeader = ['時間','正面','背面','評分','模式'];
+  const logHeader = ['時間','正面','背面','評分','實際等級','模式'];
   const logRows = [logHeader];
-  const cardById = new Map(store.cards.map(c => [c.id, c]));
+  const cardByKey = new Map(store.cards.map(c => [cardKey(c), c]));
   store.logs.slice(-10000).forEach(l => {
-    const c = cardById.get(l.id);
+    const c = cardByKey.get(l.key || l.id);
     const L = LV_MAP[l.lv];
+    const E = LV_MAP[l.eff];
     logRows.push([
       formatDate(l.t),
       c ? c.front : '', c ? c.back : '',
       L ? L.name : (l.lv || ''),
+      E ? E.name : (l.eff || ''),
       l.mode === 'visual' ? '視覺' : l.mode === 'listen' ? '聽力' : (l.mode || ''),
     ]);
   });
   const wsLogs = XLSX.utils.aoa_to_sheet(logRows);
-  wsLogs['!cols'] = [{ wch: 18 },{ wch: 24 },{ wch: 24 },{ wch: 10 },{ wch: 10 }];
+  wsLogs['!cols'] = [{ wch: 18 },{ wch: 24 },{ wch: 24 },{ wch: 10 },{ wch: 10 },{ wch: 10 }];
 
   const today = dateKey();
   const vLogs = store.logs.filter(l => l.mode === 'visual');
@@ -2107,12 +2178,12 @@ function exportExcel(){
     ['等級','視覺張數','聽力張數'],
     ...LEVELS.slice().reverse().map(L => [
       L.name,
-      store.cards.filter(c => getLevel(c.id, 'visual') === L.lv).length,
-      store.cards.filter(c => getLevel(c.id, 'listen') === L.lv).length,
+      store.cards.filter(c => getLevel(cardKey(c), 'visual') === L.lv).length,
+      store.cards.filter(c => getLevel(cardKey(c), 'listen') === L.lv).length,
     ]),
     ['未學習',
-      store.cards.filter(c => !getProgress(c.id, 'visual')).length,
-      store.cards.filter(c => !getProgress(c.id, 'listen')).length,
+      store.cards.filter(c => !hasProgress(cardKey(c), 'visual')).length,
+      store.cards.filter(c => !hasProgress(cardKey(c), 'listen')).length,
     ],
   ];
   const wsStats = XLSX.utils.aoa_to_sheet(statsRows);
@@ -2162,7 +2233,7 @@ function importExcel(file){
       if (rows.length < 2){ alert('工作表沒有資料列'); return; }
 
       const head = rows[0].map(x => String(x).trim());
-      const findIdx = (keys, extra) => head.findIndex(h => {
+      const findIdx = (keys) => head.findIndex(h => {
         const s = h.toLowerCase();
         return keys.some(k => s.includes(k.toLowerCase()));
       });
@@ -2172,7 +2243,6 @@ function importExcel(file){
         back:     findIdx(BACK_KEYS),
         note:     findIdx(NOTE_KEYS),
         deck:     head.findIndex(h => h.includes('牌組') || h.toLowerCase().includes('deck')),
-        // 視覺
         vLevel:   head.findIndex(h => h.includes('視覺等級')),
         vReps:    head.findIndex(h => h.includes('視覺複習次數')),
         vEase:    head.findIndex(h => h.includes('視覺易度')),
@@ -2180,7 +2250,6 @@ function importExcel(file){
         vDue:     head.findIndex(h => h.includes('視覺下次到期')),
         vLapses:  head.findIndex(h => h.includes('視覺遺忘')),
         vLast:    head.findIndex(h => h.includes('視覺最後')),
-        // 聽力
         lLevel:   head.findIndex(h => h.includes('聽力等級')),
         lReps:    head.findIndex(h => h.includes('聽力複習次數')),
         lEase:    head.findIndex(h => h.includes('聽力易度')),
@@ -2188,8 +2257,7 @@ function importExcel(file){
         lDue:     head.findIndex(h => h.includes('聽力下次到期')),
         lLapses:  head.findIndex(h => h.includes('聽力遺忘')),
         lLast:    head.findIndex(h => h.includes('聽力最後')),
-        // 舊格式（單一份）
-        legacyLevel: head.findIndex(h => h === '等級' || h === '等级' || h.toLowerCase() === 'level'),
+        legacyLevel: head.findIndex(h => (h === '等級' || h === '等级' || h.toLowerCase() === 'level')),
       };
 
       if (idx.front < 0 || idx.back < 0){ alert('工作表需包含「正面」與「背面」欄位'); return; }
@@ -2208,8 +2276,7 @@ function importExcel(file){
         store.logs = [];
       }
 
-      const byId  = new Map(store.cards.map(c => [c.id, c]));
-      const byKey = new Map(store.cards.map(c => [c.front + '\u0001' + c.back, c]));
+      const byKey = new Map(store.cards.map(c => [cardKey(c), c]));
 
       let added = 0, updated = 0, skipped = 0;
 
@@ -2219,13 +2286,10 @@ function importExcel(file){
         const back  = String(r[idx.back]  ?? '').trim();
         if (!front && !back) continue;
 
-        const rowId = idx.id >= 0 ? String(r[idx.id] ?? '').trim() : '';
-        const key = front + '\u0001' + back;
-
-        let card = (rowId && byId.get(rowId)) || byKey.get(key);
+        const key = front + SEP + back;
+        let card = byKey.get(key);
 
         if (card){
-          card.front = front; card.back = back;
           if (idx.note >= 0) card.note = String(r[idx.note] ?? '').trim();
           if (idx.deck >= 0){
             const d = String(r[idx.deck] ?? '').trim();
@@ -2235,25 +2299,22 @@ function importExcel(file){
         } else {
           if (!front || !back){ skipped++; continue; }
           card = {
-            id: rowId || uid(),
+            id: idx.id >= 0 ? String(r[idx.id] ?? '').trim() || uid() : uid(),
             front, back,
             note: idx.note >= 0 ? String(r[idx.note] ?? '').trim() : '',
             deck: idx.deck >= 0 ? (String(r[idx.deck] ?? '').trim() || '預設') : '預設',
             created: Date.now(),
           };
           store.cards.push(card);
-          byId.set(card.id, card);
           byKey.set(key, card);
           added++;
         }
 
-        // 讀進度
         if (hasDual){
-          // 視覺
           if (idx.vLevel >= 0){
             const lv = parseLevel(r[idx.vLevel]);
             if (lv > 0){
-              const p = getProgress(card.id, 'visual') || newProgress();
+              const p = getProgress(key, 'visual') || newProgress();
               p.level = lv;
               if (idx.vReps >= 0)     p.reps     = Number(r[idx.vReps])     || 0;
               if (idx.vEase >= 0)     p.ease     = Number(r[idx.vEase])     || 2.5;
@@ -2261,14 +2322,14 @@ function importExcel(file){
               if (idx.vLapses >= 0)   p.lapses   = Number(r[idx.vLapses])   || 0;
               if (idx.vLast >= 0)     p.last     = parseDate(r[idx.vLast])  || Date.now();
               if (idx.vDue >= 0)      p.due      = parseDate(r[idx.vDue])   || (Date.now() + p.interval * 86400000);
-              setProgress(card.id, 'visual', p);
+              if (!Array.isArray(p.history)) p.history = [];
+              setProgress(key, 'visual', p);
             }
           }
-          // 聽力
           if (idx.lLevel >= 0){
             const lv = parseLevel(r[idx.lLevel]);
             if (lv > 0){
-              const p = getProgress(card.id, 'listen') || newProgress();
+              const p = getProgress(key, 'listen') || newProgress();
               p.level = lv;
               if (idx.lReps >= 0)     p.reps     = Number(r[idx.lReps])     || 0;
               if (idx.lEase >= 0)     p.ease     = Number(r[idx.lEase])     || 2.5;
@@ -2276,17 +2337,17 @@ function importExcel(file){
               if (idx.lLapses >= 0)   p.lapses   = Number(r[idx.lLapses])   || 0;
               if (idx.lLast >= 0)     p.last     = parseDate(r[idx.lLast])  || Date.now();
               if (idx.lDue >= 0)      p.due      = parseDate(r[idx.lDue])   || (Date.now() + p.interval * 86400000);
-              setProgress(card.id, 'listen', p);
+              if (!Array.isArray(p.history)) p.history = [];
+              setProgress(key, 'listen', p);
             }
           }
         } else if (hasLegacy){
-          // 舊格式 → 兩邊都給
           const lv = parseLevel(r[idx.legacyLevel]);
           if (lv > 0){
             const base = newProgress();
             base.level = lv;
-            setProgress(card.id, 'visual', JSON.parse(JSON.stringify(base)));
-            setProgress(card.id, 'listen', JSON.parse(JSON.stringify(base)));
+            setProgress(key, 'visual', JSON.parse(JSON.stringify(base)));
+            setProgress(key, 'listen', JSON.parse(JSON.stringify(base)));
           }
         }
       }
@@ -2310,7 +2371,7 @@ function importExcel(file){
 }
 
 /* =========================================================
-   13. 事件綁定與啟動
+   14. 事件綁定與啟動
    ========================================================= */
 $('#tabs').addEventListener('click', e => {
   const b = e.target.closest('button[data-tab]');
@@ -2343,6 +2404,10 @@ document.addEventListener('visibilitychange', () => {
     store.settings.folderId = cleaned;
     save();
   }
+
+  // 啟動時先遷移一次
+  migrateProgressKeys();
+
   render();
   if (cloudReady() && store.settings.autoSync){
     await syncFromCloud(true);
