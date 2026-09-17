@@ -732,18 +732,32 @@ async function syncFromCloud(silent){
 
   cloudState.syncing = true;
   cloudState.error = '';
+  cloudState.fileErrors = [];
   updateHeader();
   if (!silent) toast('<span class="spinner"></span>雲端同步中…');
 
   try {
-    // 先 flush 本地 dirty 分片（如果有）
-    if (dirtyShards.size > 0){
-      await uploadToCloud();
-    }
-
     const sep = cloudUrl.includes('?') ? '&' : '?';
 
-    // 1) 檔案清單
+    // ========== 步驟 1：先上傳本地 dirty 分片 ==========
+    // 保證雲端包含「你剛評的分」，才不會被下面的雲端覆蓋蓋掉
+    if (dirtyShards.size > 0){
+      if (!silent) toast('<span class="spinner"></span>上傳本地變更…');
+      await uploadToCloud();
+      // 給 Drive 一點時間 index
+      await new Promise(r => setTimeout(r, 500));
+    }
+
+    // ========== 步驟 2：ping 後端 ==========
+    try {
+      const pingRes = await fetch(`${cloudUrl}${sep}action=ping&folderId=${encodeURIComponent(folderId)}&_=${Date.now()}`);
+      if (pingRes.ok){
+        const pingData = await pingRes.json();
+        if (pingData.ok) cloudState.backendVersion = pingData.version || 0;
+      }
+    } catch(e){}
+
+    // ========== 步驟 3：檔案清單 ==========
     const listRes = await fetch(`${cloudUrl}${sep}action=list&folderId=${encodeURIComponent(folderId)}&_=${Date.now()}`);
     if (!listRes.ok) throw new Error('HTTP ' + listRes.status);
     const listData = await listRes.json();
@@ -751,32 +765,47 @@ async function syncFromCloud(silent){
 
     const files = listData.files || [];
     let downloaded = 0, fromCache = 0;
-
-    // 2) 逐檔比對快取
     const decks = [];
+    const fileErrors = [];
+
+    // ========== 步驟 4：逐檔下載卡片 ==========
     for (const f of files){
       try {
         const cached = await cacheGetCard(f.name);
         if (cached && cached.modified === f.modified && cached.size === f.size){
           const cards = parseCloudFile({ name: f.name, ext: f.ext, base64: cached.base64 });
           if (cards.length) decks.push({ name: f.name, cards });
+          else fileErrors.push({ name: f.name, error: '無法解析（快取）' });
           fromCache++;
         } else {
           const getRes = await fetch(`${cloudUrl}${sep}action=get&folderId=${encodeURIComponent(folderId)}&name=${encodeURIComponent(f.name)}&_=${Date.now()}`);
           if (!getRes.ok) throw new Error('HTTP ' + getRes.status);
           const got = await getRes.json();
-          if (!got.ok) throw new Error(got.error);
+          if (!got.ok) throw new Error(got.error || '取得檔案失敗');
+          if (!got.base64) throw new Error('回傳缺少 base64');
           await cacheSetCard(f.name, got.modified, got.size, got.base64);
           const cards = parseCloudFile(got);
           if (cards.length) decks.push({ name: f.name, cards });
+          else fileErrors.push({ name: f.name, error: '無法解析（欄位或缺資料）' });
           downloaded++;
         }
-      } catch(e){ console.warn('讀取失敗：' + f.name, e); }
+      } catch(e){
+        console.warn('讀取失敗：' + f.name, e);
+        fileErrors.push({ name: f.name, error: e.message || String(e) });
+      }
     }
 
-    applyDecks(decks);
+    cloudState.fileErrors = fileErrors;
 
-    // 3) 讀進度分片
+    if (files.length > 0 && decks.length === 0){
+      // 有檔案但全部失敗 → 保留本機卡片
+    } else if (files.length === 0){
+      store.cards = [];
+    } else {
+      applyDecks(decks);
+    }
+
+    // ========== 步驟 5：讀進度分片（雲端為準） ==========
     const shardResults = await Promise.all(
       Array.from({ length: PROGRESS_SHARDS }, (_, i) =>
         fetch(`${cloudUrl}${sep}action=getFile&folderId=${encodeURIComponent(folderId)}&name=${encodeURIComponent(shardName(i))}&_=${Date.now()}`)
@@ -786,20 +815,65 @@ async function syncFromCloud(silent){
     );
 
     let shardsLoaded = 0;
-    const mergedV = {}, mergedL = {};
-    shardResults.forEach(r => {
-      if (r.ok && r.data){
+    let shardsWithContent = 0;
+    let shardsEmptyOrMissing = 0;
+
+    shardResults.forEach((r, i) => {
+      // 分片存在
+      if (r.ok && r.data !== null && r.data !== undefined && r.data !== ''){
         try {
           const shard = JSON.parse(r.data);
-          Object.assign(mergedV, shard.visual || {});
-          Object.assign(mergedL, shard.listen || {});
-          shardsLoaded++;
-        } catch(e){ console.warn('分片解析失敗', e); }
+          const shardV = shard.visual || {};
+          const shardL = shard.listen || {};
+          const hasContent = Object.keys(shardV).length > 0 || Object.keys(shardL).length > 0;
+
+          if (hasContent){
+            // === 雲端有內容 → 以此為準，清空本地此分片 ===
+            Object.keys(store.progress.visual).forEach(k => {
+              if (shardOf(k) === i) delete store.progress.visual[k];
+            });
+            Object.keys(store.progress.listen).forEach(k => {
+              if (shardOf(k) === i) delete store.progress.listen[k];
+            });
+
+            // 寫入雲端資料
+            Object.assign(store.progress.visual, shardV);
+            Object.assign(store.progress.listen, shardL);
+
+            shardsWithContent++;
+            shardsLoaded++;
+          } else {
+            // === 雲端分片空 → 保留本地；若本地此分片有資料則標記上傳 ===
+            const localVHas = Object.keys(store.progress.visual).some(k => shardOf(k) === i);
+            const localLHas = Object.keys(store.progress.listen).some(k => shardOf(k) === i);
+            if (localVHas || localLHas){
+              dirtyShards.add(i);
+            }
+            shardsEmptyOrMissing++;
+          }
+        } catch(e){
+          console.warn('分片 ' + i + ' 解析失敗，保留本地', e);
+        }
+      } else {
+        // 分片不存在 → 保留本地；若本地此分片有資料則標記上傳
+        const localVHas = Object.keys(store.progress.visual).some(k => shardOf(k) === i);
+        const localLHas = Object.keys(store.progress.listen).some(k => shardOf(k) === i);
+        if (localVHas || localLHas){
+          dirtyShards.add(i);
+        }
+        shardsEmptyOrMissing++;
       }
     });
 
-    // 若雲端還沒有分片（第一次使用），嘗試讀舊格式 _progress.json
-    if (shardsLoaded === 0){
+    // 若雲端完全沒有「有內容」的分片（首次使用），把本地全部推上去
+    if (shardsWithContent === 0 && (Object.keys(store.progress.visual).length > 0 || Object.keys(store.progress.listen).length > 0)){
+      console.log('[sync] 雲端無內容分片，將本地進度推送為首次資料');
+      markAllShardsDirty();
+      logDirty = true;
+    }
+
+    // 舊格式 _progress.json 遷移（若存在且雲端沒新分片）
+    if (shardsWithContent === 0){
       try {
         const legacyRes = await fetch(`${cloudUrl}${sep}action=getFile&folderId=${encodeURIComponent(folderId)}&name=_progress.json&_=${Date.now()}`);
         if (legacyRes.ok){
@@ -807,30 +881,32 @@ async function syncFromCloud(silent){
           if (legacy.ok && legacy.data){
             const parsed = JSON.parse(legacy.data);
             const pr = parsed.progress || parsed;
+            const legacyV = {}, legacyL = {};
             if (pr.visual || pr.listen){
-              Object.assign(mergedV, pr.visual || {});
-              Object.assign(mergedL, pr.listen || {});
+              Object.assign(legacyV, pr.visual || {});
+              Object.assign(legacyL, pr.listen || {});
             } else {
               Object.keys(pr).forEach(k => {
-                mergedV[k] = JSON.parse(JSON.stringify(pr[k]));
-                mergedL[k] = JSON.parse(JSON.stringify(pr[k]));
+                legacyV[k] = JSON.parse(JSON.stringify(pr[k]));
+                legacyL[k] = JSON.parse(JSON.stringify(pr[k]));
               });
             }
+
+            // 清空本地，用舊備份
+            store.progress.visual = legacyV;
+            store.progress.listen = legacyL;
             shardsLoaded = 1;
-            console.log('[遷移] 從舊版 _progress.json 讀取進度，將打散為分片');
-            // 標記所有分片為 dirty，以便上傳
-            for (let i = 0; i < PROGRESS_SHARDS; i++) dirtyShards.add(i);
+
+            // 標記所有分片 dirty，稍後上傳成分片格式
+            markAllShardsDirty();
+            logDirty = true;
+            console.log('[遷移] 舊版 _progress.json 遷移完成，將寫入分片');
           }
         }
-      } catch(e){ console.warn('讀取舊格式失敗', e); }
+      } catch(e){}
     }
 
-    if (shardsLoaded > 0){
-      store.progress.visual = mergedV;
-      store.progress.listen = mergedL;
-    }
-
-    // 4) 讀 log（當月）
+    // ========== 步驟 6：月度日誌（合併，不覆蓋） ==========
     try {
       const ym = monthKey();
       const logRes = await fetch(`${cloudUrl}${sep}action=getFile&folderId=${encodeURIComponent(folderId)}&name=${encodeURIComponent('_logs_' + ym + '.json')}&_=${Date.now()}`);
@@ -850,7 +926,7 @@ async function syncFromCloud(silent){
           } catch(e){}
         }
       }
-    } catch(e){ console.warn('讀取 log 失敗', e); }
+    } catch(e){}
 
     migrateProgressKeys();
 
@@ -865,14 +941,18 @@ async function syncFromCloud(silent){
     save();
     if (!session) render(); else updateHeader();
 
-    // 若剛剛有標記 dirty（舊格式遷移），立即上傳
+    // 若有分片標記為 dirty（本地有資料雲端沒有），立即上傳
     if (dirtyShards.size > 0){
       scheduleUpload();
     }
 
-    const msg = `✅ 同步完成：${files.length} 檔（新 ${downloaded} · 快取 ${fromCache}）· ${shardsLoaded} 分片`;
+    let msg = `✅ 同步完成：${files.length} 檔（新 ${downloaded} · 快取 ${fromCache}）· ${store.cards.length} 張卡片`;
+    if (shardsWithContent > 0) msg += `<br>☁️ 已載入 ${shardsWithContent} 個雲端分片（雲端為準）`;
+    if (shardsEmptyOrMissing > 0 && dirtyShards.size > 0) msg += `<br>⬆️ ${dirtyShards.size} 個本地分片將上傳`;
+    if (fileErrors.length > 0) msg += `<br>⚠️ ${fileErrors.length} 個檔案失敗`;
+
     if (!silent) toast(msg);
-    else if (downloaded > 0) toast(`☁️ 已更新 ${downloaded} 個檔案`);
+    else if (downloaded > 0 || fileErrors.length > 0) toast(msg);
   } catch(e){
     cloudState.error = e.message;
     console.warn(e);
@@ -882,7 +962,6 @@ async function syncFromCloud(silent){
     updateHeader();
   }
 }
-
 function parseCloudFile(file){
   let wb;
   const bytes = base64ToBytes(file.base64);
