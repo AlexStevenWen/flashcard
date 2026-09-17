@@ -265,6 +265,11 @@
   .deckStats b{color:var(--text);font-weight:800}
   .deckActions{display:flex;gap:6px;flex-wrap:wrap}
   .deckEmpty{text-align:center;padding:30px 20px;color:var(--muted);font-size:13px}
+  .cacheBadge{display:inline-flex;align-items:center;gap:4px;background:#f3e8ff;color:#6b21a8;
+    padding:3px 8px;border-radius:999px;font-size:11px;font-weight:700}
+  @media (prefers-color-scheme: dark){
+    .cacheBadge{background:#581c8733;color:#d8b4fe}
+  }
   @media (max-width: 720px){ .two{grid-template-columns:1fr} }
   @media (max-width: 560px){
     .app{padding:12px 10px 80px}
@@ -354,12 +359,24 @@ const BACK_KEYS  = ['背面','back','翻譯','翻译','意思','答案','answer'
                     '中文','定義','定义','meaning','definition','說明'];
 const NOTE_KEYS  = ['備註','备注','note','補充','补充','例句','提示'];
 
-/* 卡片穩定 key：用「正面 + \u0001 + 背面」，跨裝置唯一 */
 const SEP = '\u0001';
 function cardKey(c){
   if (!c) return '';
   return String(c.front || '') + SEP + String(c.back || '');
 }
+
+const PROGRESS_SHARDS = 10;
+function shardOf(key){
+  let h = 0;
+  for (let i = 0; i < key.length; i++){
+    h = (h * 31 + key.charCodeAt(i)) >>> 0;
+  }
+  return h % PROGRESS_SHARDS;
+}
+function shardName(i){
+  return `_progress_${String(i).padStart(2,'0')}.json`;
+}
+const META_FILE = '_meta.json';
 
 const $  = s => document.querySelector(s);
 const $$ = s => [...document.querySelectorAll(s)];
@@ -372,6 +389,11 @@ function dateKey(d = new Date()){
   const m = String(d.getMonth() + 1).padStart(2, '0');
   const dd = String(d.getDate()).padStart(2, '0');
   return `${y}-${m}-${dd}`;
+}
+function monthKey(d = new Date()){
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  return `${y}-${m}`;
 }
 function formatDate(ts){
   if (!ts) return '';
@@ -449,7 +471,74 @@ function getCleanFolderId(){
 }
 
 /* =========================================================
-   2. 狀態
+   2. IndexedDB（卡片快取）
+   ========================================================= */
+let _dbPromise = null;
+function idb(){
+  if (_dbPromise) return _dbPromise;
+  return _dbPromise = new Promise((resolve, reject) => {
+    const req = indexedDB.open('flashcard-fs', 1);
+    req.onupgradeneeded = () => {
+      if (!req.result.objectStoreNames.contains('kv')) req.result.createObjectStore('kv');
+    };
+    req.onsuccess = () => resolve(req.result);
+    req.onerror = () => reject(req.error);
+  });
+}
+async function idbSet(key, val){
+  const db = await idb();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction('kv', 'readwrite');
+    tx.objectStore('kv').put(val, key);
+    tx.oncomplete = resolve;
+    tx.onerror = () => reject(tx.error);
+  });
+}
+async function idbGet(key){
+  const db = await idb();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction('kv', 'readonly');
+    const r = tx.objectStore('kv').get(key);
+    r.onsuccess = () => resolve(r.result);
+    r.onerror = () => reject(r.error);
+  });
+}
+async function idbDel(key){
+  const db = await idb();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction('kv', 'readwrite');
+    tx.objectStore('kv').delete(key);
+    tx.oncomplete = resolve;
+    tx.onerror = () => reject(tx.error);
+  });
+}
+async function cacheGetCard(name){
+  try { return await idbGet('card:' + name); } catch(e){ return null; }
+}
+async function cacheSetCard(name, modified, size, base64){
+  try { await idbSet('card:' + name, { modified, size, base64 }); } catch(e){}
+}
+async function cacheClearAll(){
+  const db = await idb();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction('kv', 'readwrite');
+    const store = tx.objectStore('kv');
+    const r = store.openCursor();
+    r.onsuccess = () => {
+      const cur = r.result;
+      if (cur){
+        if (String(cur.key).startsWith('card:')) cur.delete();
+        cur.continue();
+      } else {
+        resolve();
+      }
+    };
+    r.onerror = () => reject(r.error);
+  });
+}
+
+/* =========================================================
+   3. 狀態
    ========================================================= */
 function defaultStore(){
   return {
@@ -488,7 +577,7 @@ function save(){
 }
 
 /* =========================================================
-   3. 進度存取（用卡片內容當 key，跨裝置穩定）
+   4. 進度存取
    ========================================================= */
 function newProgress(){
   return { level:0, ease:2.5, interval:0, due:0, reps:0, lapses:0, last:0, history:[] };
@@ -517,26 +606,19 @@ function hasProgress(key, mode){
   return !!getProgress(key, mode);
 }
 
-/* 評分：記錄最近 5 次，避免手誤 */
 function gradeCard(key, level, mode){
   const p = getProgress(key, mode) || newProgress();
 
-  // 記錄最近 5 次評分（新的在前）
   if (!Array.isArray(p.history)) p.history = [];
   p.history.unshift(level);
   if (p.history.length > 5) p.history = p.history.slice(0, 5);
 
-  // 用最近 5 次平均決定「實際等級」
   const recent = p.history;
   const avg = recent.reduce((a, b) => a + b, 0) / recent.length;
   let effectiveLevel = Math.round(avg);
-
-  // 不能高於使用者剛按的分數（避免歷史高分讓一次低分也跳級）
   if (effectiveLevel > level) effectiveLevel = level;
-  // 不能低於 1
   if (effectiveLevel < 1) effectiveLevel = 1;
 
-  // 精熟標準：需要 5 次紀錄 且 平均 >= 4.5
   if (effectiveLevel === 5){
     if (recent.length < 5 || avg < 4.5){
       effectiveLevel = 4;
@@ -547,7 +629,6 @@ function gradeCard(key, level, mode){
   p.last = Date.now();
   if (level === 1) p.lapses++;
 
-  // 用「實際等級」更新 ease 與 interval
   if (effectiveLevel >= 4)      p.ease = Math.min(3.0, p.ease + 0.08);
   else if (effectiveLevel === 2) p.ease = Math.max(1.3, p.ease - 0.15);
   else if (effectiveLevel === 1) p.ease = Math.max(1.3, p.ease - 0.30);
@@ -566,11 +647,11 @@ function gradeCard(key, level, mode){
   store.logs.push({ t: Date.now(), key, lv: level, eff: effectiveLevel, mode });
   if (store.logs.length > 30000) store.logs = store.logs.slice(-20000);
   save();
-  scheduleUpload();
+  scheduleUpload(key);
 }
 
 /* =========================================================
-   4. 舊資料遷移（用卡片 id → 卡片內容 key）
+   5. 舊資料遷移
    ========================================================= */
 function migrateProgressKeys(){
   if (!store.progress) store.progress = { visual:{}, listen:{} };
@@ -580,9 +661,7 @@ function migrateProgressKeys(){
   if (!store.cards || !store.cards.length) return;
 
   const idToKey = new Map();
-  store.cards.forEach(c => {
-    idToKey.set(c.id, cardKey(c));
-  });
+  store.cards.forEach(c => idToKey.set(c.id, cardKey(c)));
 
   let migrated = 0;
 
@@ -598,14 +677,13 @@ function migrateProgressKeys(){
           newBag[newKey] = bag[k];
           migrated++;
         } else {
-          newBag[k] = bag[k]; // 找不到對應卡片，保留
+          newBag[k] = bag[k];
         }
       }
     });
     store.progress[mode] = newBag;
   });
 
-  // logs 遷移
   store.logs.forEach(l => {
     if (l.key === undefined){
       if (l.id !== undefined){
@@ -621,19 +699,22 @@ function migrateProgressKeys(){
   });
 
   if (migrated > 0){
-    console.log(`[遷移] 已將 ${migrated} 筆進度改用卡片內容作為 key（跨裝置同步）`);
+    console.log(`[遷移] 已將 ${migrated} 筆進度改用卡片內容作為 key`);
     save();
   }
 }
 
 /* =========================================================
-   5. 雲端資料夾
+   6. 雲端資料夾
    ========================================================= */
 const cloudState = {
   connected: false, syncing: false, lastSync: 0,
   fileCount: 0, cardCount: 0, error: '',
+  downloaded: 0, fromCache: 0, shardsLoaded: 0,
 };
 let uploadTimer = null;
+let logDirty = false;
+let dirtyShards = new Set();
 
 function cloudReady(){
   return !!(store.settings.cloudUrl && extractFolderId(store.settings.folderId));
@@ -655,64 +736,143 @@ async function syncFromCloud(silent){
   if (!silent) toast('<span class="spinner"></span>雲端同步中…');
 
   try {
+    // 先 flush 本地 dirty 分片（如果有）
+    if (dirtyShards.size > 0){
+      await uploadToCloud();
+    }
+
     const sep = cloudUrl.includes('?') ? '&' : '?';
+
+    // 1) 檔案清單
     const listRes = await fetch(`${cloudUrl}${sep}action=list&folderId=${encodeURIComponent(folderId)}&_=${Date.now()}`);
     if (!listRes.ok) throw new Error('HTTP ' + listRes.status);
     const listData = await listRes.json();
     if (!listData.ok) throw new Error(listData.error || '讀取失敗');
 
     const files = listData.files || [];
+    let downloaded = 0, fromCache = 0;
+
+    // 2) 逐檔比對快取
     const decks = [];
     for (const f of files){
       try {
-        const cards = parseCloudFile(f);
-        if (cards.length) decks.push({ name: f.name, cards });
-      } catch(e){ console.warn('解析失敗：' + f.name, e); }
+        const cached = await cacheGetCard(f.name);
+        if (cached && cached.modified === f.modified && cached.size === f.size){
+          const cards = parseCloudFile({ name: f.name, ext: f.ext, base64: cached.base64 });
+          if (cards.length) decks.push({ name: f.name, cards });
+          fromCache++;
+        } else {
+          const getRes = await fetch(`${cloudUrl}${sep}action=get&folderId=${encodeURIComponent(folderId)}&name=${encodeURIComponent(f.name)}&_=${Date.now()}`);
+          if (!getRes.ok) throw new Error('HTTP ' + getRes.status);
+          const got = await getRes.json();
+          if (!got.ok) throw new Error(got.error);
+          await cacheSetCard(f.name, got.modified, got.size, got.base64);
+          const cards = parseCloudFile(got);
+          if (cards.length) decks.push({ name: f.name, cards });
+          downloaded++;
+        }
+      } catch(e){ console.warn('讀取失敗：' + f.name, e); }
     }
 
     applyDecks(decks);
 
-    // 讀進度
-    try {
-      const metaRes = await fetch(`${cloudUrl}${sep}action=meta&folderId=${encodeURIComponent(folderId)}&_=${Date.now()}`);
-      if (metaRes.ok){
-        const metaData = await metaRes.json();
-        if (metaData.ok && metaData.data){
-          const parsed = JSON.parse(metaData.data);
-          if (parsed.progress){
-            const pr = parsed.progress;
+    // 3) 讀進度分片
+    const shardResults = await Promise.all(
+      Array.from({ length: PROGRESS_SHARDS }, (_, i) =>
+        fetch(`${cloudUrl}${sep}action=getFile&folderId=${encodeURIComponent(folderId)}&name=${encodeURIComponent(shardName(i))}&_=${Date.now()}`)
+          .then(r => r.json())
+          .catch(() => ({ ok:false }))
+      )
+    );
+
+    let shardsLoaded = 0;
+    const mergedV = {}, mergedL = {};
+    shardResults.forEach(r => {
+      if (r.ok && r.data){
+        try {
+          const shard = JSON.parse(r.data);
+          Object.assign(mergedV, shard.visual || {});
+          Object.assign(mergedL, shard.listen || {});
+          shardsLoaded++;
+        } catch(e){ console.warn('分片解析失敗', e); }
+      }
+    });
+
+    // 若雲端還沒有分片（第一次使用），嘗試讀舊格式 _progress.json
+    if (shardsLoaded === 0){
+      try {
+        const legacyRes = await fetch(`${cloudUrl}${sep}action=getFile&folderId=${encodeURIComponent(folderId)}&name=_progress.json&_=${Date.now()}`);
+        if (legacyRes.ok){
+          const legacy = await legacyRes.json();
+          if (legacy.ok && legacy.data){
+            const parsed = JSON.parse(legacy.data);
+            const pr = parsed.progress || parsed;
             if (pr.visual || pr.listen){
-              // 新格式：兩套
-              // 但 key 可能是舊的 uid，先存著晚點遷移
-              store.progress.visual = pr.visual || {};
-              store.progress.listen = pr.listen || {};
+              Object.assign(mergedV, pr.visual || {});
+              Object.assign(mergedL, pr.listen || {});
             } else {
-              // 舊格式：單一份，複製到兩邊
-              const v = {}, l = {};
               Object.keys(pr).forEach(k => {
-                v[k] = JSON.parse(JSON.stringify(pr[k]));
-                l[k] = JSON.parse(JSON.stringify(pr[k]));
+                mergedV[k] = JSON.parse(JSON.stringify(pr[k]));
+                mergedL[k] = JSON.parse(JSON.stringify(pr[k]));
               });
-              store.progress.visual = v;
-              store.progress.listen = l;
             }
+            shardsLoaded = 1;
+            console.log('[遷移] 從舊版 _progress.json 讀取進度，將打散為分片');
+            // 標記所有分片為 dirty，以便上傳
+            for (let i = 0; i < PROGRESS_SHARDS; i++) dirtyShards.add(i);
           }
-          if (parsed.logs) store.logs = parsed.logs;
+        }
+      } catch(e){ console.warn('讀取舊格式失敗', e); }
+    }
+
+    if (shardsLoaded > 0){
+      store.progress.visual = mergedV;
+      store.progress.listen = mergedL;
+    }
+
+    // 4) 讀 log（當月）
+    try {
+      const ym = monthKey();
+      const logRes = await fetch(`${cloudUrl}${sep}action=getFile&folderId=${encodeURIComponent(folderId)}&name=${encodeURIComponent('_logs_' + ym + '.json')}&_=${Date.now()}`);
+      if (logRes.ok){
+        const logData = await logRes.json();
+        if (logData.ok && logData.data){
+          try {
+            const cloudLogs = JSON.parse(logData.data);
+            const merged = [...store.logs, ...cloudLogs];
+            const seen = new Set();
+            const deduped = [];
+            for (const l of merged.sort((a,b)=>b.t-a.t)){
+              const sig = l.t + '|' + (l.key || l.id) + '|' + l.mode;
+              if (!seen.has(sig)){ seen.add(sig); deduped.push(l); }
+            }
+            store.logs = deduped.slice(0, 20000);
+          } catch(e){}
         }
       }
-    } catch(e){ console.warn('讀取進度失敗', e); }
+    } catch(e){ console.warn('讀取 log 失敗', e); }
 
-    // 卡片同步完成後，再遷移一次（把 uid key 轉成卡片內容 key）
     migrateProgressKeys();
 
     cloudState.connected = true;
     cloudState.lastSync = Date.now();
     cloudState.fileCount = files.length;
     cloudState.cardCount = store.cards.length;
+    cloudState.downloaded = downloaded;
+    cloudState.fromCache = fromCache;
+    cloudState.shardsLoaded = shardsLoaded;
 
     save();
     if (!session) render(); else updateHeader();
-    if (!silent) toast(`✅ 雲端同步完成：${files.length} 檔 · ${store.cards.length} 張卡片`);
+
+    // 若剛剛有標記 dirty（舊格式遷移），立即上傳
+    if (dirtyShards.size > 0){
+      scheduleUpload();
+    }
+
+    const msg = `✅ 同步完成：${files.length} 檔（新 ${downloaded} · 快取 ${fromCache}）· ${shardsLoaded} 分片`;
+    if (!silent) toast(msg);
+    else if (downloaded > 0) toast(`☁️ 已更新 ${downloaded} 個檔案`);
   } catch(e){
     cloudState.error = e.message;
     console.warn(e);
@@ -787,31 +947,97 @@ function applyDecks(decks){
   store.cards = newCards;
 }
 
-function scheduleUpload(){
-  if (!cloudReady()) return;
-  clearTimeout(uploadTimer);
-  uploadTimer = setTimeout(uploadToCloud, 2000);
+function markShardDirty(key){
+  if (!key) return;
+  dirtyShards.add(shardOf(key));
 }
+function markAllShardsDirty(){
+  for (let i = 0; i < PROGRESS_SHARDS; i++) dirtyShards.add(i);
+}
+
+function scheduleUpload(key){
+  if (!cloudReady()) return;
+  if (key) markShardDirty(key);
+  logDirty = true;
+  clearTimeout(uploadTimer);
+  uploadTimer = setTimeout(uploadToCloud, 2500);
+}
+
 async function uploadToCloud(){
   const cloudUrl = store.settings.cloudUrl;
   const folderId = getCleanFolderId();
   if (!cloudUrl || !folderId) return;
+
+  const shardsToUpload = new Set(dirtyShards);
+  const shouldUploadLog = logDirty;
+  dirtyShards.clear();
+  logDirty = false;
+
+  if (shardsToUpload.size === 0 && !shouldUploadLog) return;
+
   try {
-    await fetch(cloudUrl, {
-      method: 'POST',
-      body: JSON.stringify({
-        action: 'saveProgress',
-        folderId,
-        data: JSON.stringify({
-          progress: store.progress,
-          logs: store.logs.slice(-10000),
-          savedAt: Date.now(),
-        }),
-      }),
-    });
-    cloudState.lastSync = Date.now();
-  } catch(e){ console.warn('上傳失敗', e); }
+    const tasks = [];
+
+    // 上傳變動分片
+    for (const i of shardsToUpload){
+      const shard = { visual:{}, listen:{} };
+      Object.keys(store.progress.visual).forEach(k => {
+        if (shardOf(k) === i) shard.visual[k] = store.progress.visual[k];
+      });
+      Object.keys(store.progress.listen).forEach(k => {
+        if (shardOf(k) === i) shard.listen[k] = store.progress.listen[k];
+      });
+      const data = JSON.stringify(shard);
+      tasks.push(
+        fetch(cloudUrl, {
+          method: 'POST',
+          body: JSON.stringify({
+            action: 'saveFile',
+            folderId,
+            name: shardName(i),
+            data,
+          }),
+        }).then(r => r.json()).catch(err => ({ ok:false, error: err.message }))
+      );
+    }
+
+    // 上傳日誌（當月，最多 5000 筆）
+    if (shouldUploadLog){
+      const ym = monthKey();
+      const monthLogs = store.logs.filter(l => {
+        const d = new Date(l.t);
+        return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}` === ym;
+      }).slice(-5000);
+      tasks.push(
+        fetch(cloudUrl, {
+          method: 'POST',
+          body: JSON.stringify({
+            action: 'saveFile',
+            folderId,
+            name: '_logs_' + ym + '.json',
+            data: JSON.stringify(monthLogs),
+          }),
+        }).then(r => r.json()).catch(err => ({ ok:false, error: err.message }))
+      );
+    }
+
+    const results = await Promise.all(tasks);
+    const failed = results.filter(r => !r.ok);
+    if (failed.length > 0){
+      console.warn('部分上傳失敗', failed);
+      // 重新標記失敗的分片
+      shardsToUpload.forEach(i => dirtyShards.add(i));
+      if (shouldUploadLog) logDirty = true;
+    } else {
+      cloudState.lastSync = Date.now();
+    }
+  } catch(e){
+    console.warn('上傳失敗', e);
+    shardsToUpload.forEach(i => dirtyShards.add(i));
+    if (shouldUploadLog) logDirty = true;
+  }
 }
+
 function flushUpload(){
   if (uploadTimer){
     clearTimeout(uploadTimer);
@@ -819,8 +1045,22 @@ function flushUpload(){
   }
 }
 
+/* 上傳所有分片（手動按鈕用） */
+async function uploadAllShards(){
+  if (!cloudReady()){ toast('尚未設定雲端'); return; }
+  markAllShardsDirty();
+  logDirty = true;
+  toast('<span class="spinner"></span>上傳全部分片…');
+  await uploadToCloud();
+  if (dirtyShards.size === 0){
+    toast('✅ 已上傳 ' + PROGRESS_SHARDS + ' 個分片');
+  } else {
+    toast('⚠️ 部分分片上傳失敗，請稍後再試');
+  }
+}
+
 /* =========================================================
-   6. 語音
+   7. 語音
    ========================================================= */
 let voices = [];
 function loadVoices(){ voices = window.speechSynthesis ? speechSynthesis.getVoices() : []; }
@@ -854,7 +1094,7 @@ function speak(text, lang){
 }
 
 /* =========================================================
-   7. 佇列
+   8. 佇列
    ========================================================= */
 function buildQueue(opts, mode){
   let list = store.cards.slice();
@@ -880,7 +1120,7 @@ function buildQueue(opts, mode){
 }
 
 /* =========================================================
-   8. 主渲染
+   9. 主渲染
    ========================================================= */
 let currentTab = 'browse';
 let session = null;
@@ -902,7 +1142,7 @@ function updateHeader(){
   if (cloudState.syncing){
     cloudBadge = `<span class="hstat syncing"><span class="spinner"></span>同步中</span>`;
   } else if (cloudState.error){
-    cloudBadge = `<span class="hstat" style="background:#fee2e2;border-color:#fca5a5;color:#991b1b">☁️ 同步錯誤</span>`;
+    cloudBadge = `<span class="hstat" style="background:#fee2e2;border-color:#fca5a5;color:#991b1b">☁️ 錯誤</span>`;
   } else if (cloudState.connected && cloudState.lastSync){
     cloudBadge = `<span class="hstat cloud">☁️ <b>${cloudState.fileCount} 檔</b></span>`;
   } else if (cloudReady()){
@@ -912,8 +1152,8 @@ function updateHeader(){
   $('#hstats').innerHTML = `
     ${cloudBadge}
     <span class="hstat">卡片 <b>${total}</b></span>
-    <span class="hstat v">🔄 待複習 <b>${dueV}</b></span>
-    <span class="hstat l">🎧 待複習 <b>${dueL}</b></span>
+    <span class="hstat v">🔄 <b>${dueV}</b></span>
+    <span class="hstat l">🎧 <b>${dueL}</b></span>
     <span class="hstat">今日 <b>${todayN}</b></span>`;
 }
 
@@ -928,7 +1168,7 @@ function render(){
 }
 
 /* =========================================================
-   9. 字卡瀏覽
+   10. 字卡瀏覽
    ========================================================= */
 function filteredCards(){
   const q = (store.ui.q || '').trim().toLowerCase();
@@ -954,7 +1194,7 @@ function renderBrowse(){
   $('#view').innerHTML = `
     <div class="panel">
       <div class="toolbar">
-        <input id="q" class="input grow" placeholder="🔍 搜尋正面、背面或備註…" value="${esc(store.ui.q)}" />
+        <input id="q" class="input grow" placeholder="🔍 搜尋…" value="${esc(store.ui.q)}" />
         <select id="fDeck" class="input">
           <option value="all">全部牌組</option>
           ${decks.map(d => `<option value="${esc(d)}" ${store.ui.deck === d ? 'selected' : ''}>${esc(d)}</option>`).join('')}
@@ -991,7 +1231,7 @@ function renderGrid(){
   if (!list.length){
     let msg;
     if (store.cards.length) msg = '沒有符合條件的卡片 🔍';
-    else if (cloudReady()) msg = '雲端資料夾還沒有卡片 ☁️<br><span style="font-size:13px">請在 Google Drive 資料夾放入 .xlsx / .csv</span>';
+    else if (cloudReady()) msg = '雲端資料夾還沒有卡片 ☁️<br><span style="font-size:13px">請放入 .xlsx / .csv</span>';
     else msg = '還沒有卡片，去「⚙️ 設定」連接雲端資料夾吧！';
     grid.innerHTML = `<div class="empty" style="grid-column:1/-1">${msg}</div>`;
     return;
@@ -1022,7 +1262,7 @@ function renderGrid(){
         </div>
         <div class="fc-actions">
           <button class="icon-btn" data-act="speak" title="發音">🔊</button>
-          <button class="icon-btn" data-act="reset" title="重置這張卡（兩邊）">↺</button>
+          <button class="icon-btn" data-act="reset" title="重置這張卡">↺</button>
         </div>
       </div>
     </div>`;
@@ -1042,7 +1282,8 @@ function renderGrid(){
         if (!confirm('重置這張卡？（視覺與聽力進度都會清除）')) return;
         delProgress(key, 'visual');
         delProgress(key, 'listen');
-        save(); scheduleUpload();
+        markShardDirty(key);
+        save(); scheduleUpload(key);
         renderGrid(); updateHeader();
         toast('已重置這張卡');
       }
@@ -1053,7 +1294,7 @@ function renderGrid(){
 }
 
 /* =========================================================
-   10. 學習模式
+   11. 學習模式
    ========================================================= */
 function renderStudyUI(mode){
   if (session && session.mode === mode){
@@ -1073,12 +1314,10 @@ function drawSetup(mode){
     <div class="panel setup">
       <h2>${M.icon} ${M.name}翻卡</h2>
       <p class="muted" style="margin:0;font-size:13px">
-        ${isListen
-          ? '先聽發音 → 腦中回想答案 → 翻卡核對 → 自我評價'
-          : '看正面 → 腦中回想答案 → 翻卡核對 → 自我評價'}
+        ${isListen ? '先聽發音 → 回想 → 翻卡核對 → 評價' : '看正面 → 回想 → 翻卡核對 → 評價'}
       </p>
       <div class="hintBox" style="margin-top:12px">
-        📌 這個模式的進度是獨立的，不會影響另一個模式。<br>
+        📌 這個模式的進度是獨立的。<br>
         目前 ${M.name}模式待複習：<b>${dueCount}</b> 張
       </div>
       <div class="setup-row">
@@ -1091,9 +1330,9 @@ function drawSetup(mode){
         <label>範圍
           <select id="sScope" class="input">
             <option value="all">全部卡片</option>
-            <option value="due">只複習到期（${M.name}）</option>
-            <option value="new">只學新卡（${M.name}）</option>
-            <option value="weak">只練不熟（${M.name}）</option>
+            <option value="due">只複習到期</option>
+            <option value="new">只學新卡</option>
+            <option value="weak">只練不熟</option>
           </select>
         </label>
         <label>張數
@@ -1106,7 +1345,7 @@ function drawSetup(mode){
         </label>
       </div>
       <button class="btn primary big" id="startBtn">開始學習</button>
-      ${store.cards.length ? '' : '<p class="muted" style="margin-top:16px;font-size:13px">⚠️ 目前沒有卡片，請先連接雲端資料夾或匯入 Excel。</p>'}
+      ${store.cards.length ? '' : '<p class="muted" style="margin-top:16px;font-size:13px">⚠️ 目前沒有卡片。</p>'}
     </div>`;
 
   $('#startBtn').onclick = () => {
@@ -1244,7 +1483,7 @@ function drawDone(mode){
         <div class="kpi"><div class="kpi-v">${s ? s.done : 0}</div><div class="kpi-l">複習張數</div></div>
         <div class="kpi"><div class="kpi-v">${acc}%</div><div class="kpi-l">記得率</div></div>
       </div>
-      ${cloudReady() ? '<p class="muted" style="font-size:12px;margin-top:10px">☁️ 進度將自動上傳到雲端</p>' : ''}
+      ${cloudReady() ? '<p class="muted" style="font-size:12px;margin-top:10px">☁️ 進度將自動上傳</p>' : ''}
       <div class="done-actions">
         <button class="btn primary" id="againBtn">再來一輪</button>
         <button class="btn ghost" id="backBtn">回到設定</button>
@@ -1258,7 +1497,7 @@ function drawDone(mode){
 }
 
 /* =========================================================
-   11. 統計
+   12. 統計
    ========================================================= */
 function logsByMode(mode){
   return store.logs.filter(l => l.mode === mode);
@@ -1291,7 +1530,6 @@ function buildLogIndex(){
   });
   return map;
 }
-
 function buildDeckDetail(){
   const map = {};
   store.cards.forEach(c => {
@@ -1304,7 +1542,6 @@ function buildDeckDetail(){
     const s = map[d];
     s.total++;
     const key = cardKey(c);
-
     ['visual', 'listen'].forEach(m => {
       const bag = s[m];
       const p = getProgress(key, m);
@@ -1356,7 +1593,6 @@ function renderStats(){
   const cmpV = calcStats(logsByMode('visual'));
   const cmpL = calcStats(logsByMode('listen'));
 
-  // 兩模式等級分布
   const countsV = { 0:0, 1:0, 2:0, 3:0, 4:0, 5:0 };
   const countsL = { 0:0, 1:0, 2:0, 3:0, 4:0, 5:0 };
   store.cards.forEach(c => {
@@ -1365,7 +1601,6 @@ function renderStats(){
     countsL[getLevel(key, 'listen')]++;
   });
 
-  // 當前模式 KPI
   const counts = statsMode === 'visual' ? countsV : countsL;
   const learned = total - counts[0];
   const masteryRate = total ? Math.round(counts[5] / total * 100) : 0;
@@ -1413,12 +1648,11 @@ function renderStats(){
 
   const logIndex = buildLogIndex();
 
-  // 渲染等級分布欄
   const renderLvCol = (counts, mode) => {
-    const M = MODE_META[mode];
+    const M2 = MODE_META[mode];
     return `
       <div>
-        <h4 class="${mode === 'visual' ? 'v' : 'l'}">${M.icon} ${M.name}</h4>
+        <h4 class="${mode === 'visual' ? 'v' : 'l'}">${M2.icon} ${M2.name}</h4>
         ${[5,4,3,2,1,0].map(lv => {
           const L = lv ? LV_MAP[lv] : { name:'未學習', color: UNLEARNED_COLOR };
           const n = counts[lv];
@@ -1440,7 +1674,7 @@ function renderStats(){
     </div>
 
     <div class="hintBox" style="margin-bottom:13px">
-      📌 切換上方按鈕會改變下方 <b>KPI、等級分布、14 天圖表、未來到期、個別字卡</b> 的顯示模式。牌組卡片則同時顯示兩邊。
+      📌 切換上方按鈕會改變 KPI、14 天圖表、未來到期、個別字卡的顯示模式。
     </div>
 
     <div class="kpis">
@@ -1452,7 +1686,6 @@ function renderStats(){
       <div class="kpi"><div class="kpi-v">${S.todayAcc}%</div><div class="kpi-l">今日記得率</div></div>
     </div>
 
-    <!-- 等級分布：兩模式同時顯示 -->
     <div class="panel" style="margin-bottom:13px">
       <h3>📊 等級分布（兩模式對照）</h3>
       <div class="lvTwoCol">
@@ -1461,12 +1694,11 @@ function renderStats(){
       </div>
     </div>
 
-    <!-- 牌組卡片 -->
     <div class="panel" style="margin-bottom:13px">
       <h3>🗂 牌組精熟度（兩個模式分開看）</h3>
       <div class="deckToolbar">
         <select id="deckSortSel" class="input">
-          <option value="priority" ${deckSort==='priority'?'selected':''}>🔥 依需要練習排序（取兩邊較低）</option>
+          <option value="priority" ${deckSort==='priority'?'selected':''}>🔥 依需要練習排序</option>
           <option value="masteryV" ${deckSort==='masteryV'?'selected':''}>🔄 依視覺精熟率低→高</option>
           <option value="masteryL" ${deckSort==='masteryL'?'selected':''}>🎧 依聽力精熟率低→高</option>
           <option value="count"    ${deckSort==='count'   ?'selected':''}>📦 依張數多→少</option>
@@ -1477,7 +1709,6 @@ function renderStats(){
       ${deckList.length ? `<div class="deckGrid" id="deckGrid"></div>` : '<div class="deckEmpty">尚無牌組資料</div>'}
     </div>
 
-    <!-- 兩模式對比 -->
     <div class="panel" style="margin-bottom:13px">
       <h3>⚖️ 視覺 vs 聽力 累計對比</h3>
       <div class="cmp">
@@ -1558,10 +1789,10 @@ function renderStats(){
         </select>
         <select id="csSort" class="input">
           <option value="due" ${cardStatsSort==='due'?'selected':''}>依到期日</option>
-          <option value="reps" ${cardStatsSort==='reps'?'selected':''}>依複習次數（多→少）</option>
-          <option value="wrong" ${cardStatsSort==='wrong'?'selected':''}>依錯誤率高（當前模式）</option>
+          <option value="reps" ${cardStatsSort==='reps'?'selected':''}>依複習次數</option>
+          <option value="wrong" ${cardStatsSort==='wrong'?'selected':''}>依錯誤率高</option>
           <option value="gap" ${cardStatsSort==='gap'?'selected':''}>依兩模式差距大</option>
-          <option value="lv" ${cardStatsSort==='lv'?'selected':''}>依等級（低→高）</option>
+          <option value="lv" ${cardStatsSort==='lv'?'selected':''}>依等級低→高</option>
           <option value="front" ${cardStatsSort==='front'?'selected':''}>依正面字母</option>
         </select>
       </div>
@@ -1604,7 +1835,7 @@ function renderStats(){
               <div class="deckProgress" style="margin-top:5px">
                 <div class="deckProgressFill v" style="width:${vPct}%"></div>
               </div>
-              <div class="deckModeSub">已學 ${(V.learnedRate*100).toFixed(0)}% · 待複習 ${d.visual.due}</div>
+              <div class="deckModeSub">已學 ${(V.learnedRate*100).toFixed(0)}% · 待 ${d.visual.due}</div>
             </div>
             <div class="deckModeBox l">
               <div class="deckModeLabel">
@@ -1615,7 +1846,7 @@ function renderStats(){
               <div class="deckProgress" style="margin-top:5px">
                 <div class="deckProgressFill l" style="width:${lPct}%"></div>
               </div>
-              <div class="deckModeSub">已學 ${(L.learnedRate*100).toFixed(0)}% · 待複習 ${d.listen.due}</div>
+              <div class="deckModeSub">已學 ${(L.learnedRate*100).toFixed(0)}% · 待 ${d.listen.due}</div>
             </div>
           </div>
           <div class="deckStats">
@@ -1626,7 +1857,7 @@ function renderStats(){
             <button class="miniBtn" data-deck-progress-v="${esc(d.name)}">↺ 清視覺</button>
             <button class="miniBtn" data-deck-progress-l="${esc(d.name)}">↺ 清聽力</button>
             <button class="miniBtn" data-deck-progress-all="${esc(d.name)}">↺ 清兩邊</button>
-            <button class="miniBtn danger" data-deck-clear="${esc(d.name)}">🗑 刪除牌組</button>
+            <button class="miniBtn danger" data-deck-clear="${esc(d.name)}">🗑 刪除</button>
           </div>
         </div>
       `;
@@ -1807,6 +2038,7 @@ function clearDeckProgress(deckName, mode){
     store.logs = store.logs.filter(l => !(keySet.has(l.key || l.id) && l.mode === mode));
   }
 
+  keys.forEach(k => markShardDirty(k));
   save(); scheduleUpload();
   render(); toast(`已清空「${deckName}」的${modeLabel}進度`);
 }
@@ -1828,6 +2060,7 @@ function clearDeckFull(deckName){
   keys.forEach(k => {
     delProgress(k, 'visual');
     delProgress(k, 'listen');
+    markShardDirty(k);
   });
   store.logs = store.logs.filter(l => !keySet.has(l.key || l.id));
   save(); scheduleUpload();
@@ -1835,16 +2068,20 @@ function clearDeckFull(deckName){
 }
 
 /* =========================================================
-   12. 設定
+   13. 設定
    ========================================================= */
 function renderSettings(){
   const ready = cloudReady();
   const cleanId = extractFolderId(store.settings.folderId);
   const rawId = store.settings.folderId;
 
+  const cacheInfo = (cloudState.downloaded !== undefined)
+    ? `新下載 ${cloudState.downloaded || 0} · 快取命中 ${cloudState.fromCache || 0}`
+    : '—';
+
   $('#view').innerHTML = `
     <div class="panel" style="margin-bottom:13px">
-      <h3>☁️ 雲端資料夾卡片庫（Google Drive）</h3>
+      <h3>☁️ 雲端資料夾（Google Drive · 分片架構）</h3>
       ${ready ? `
         <div class="setrow">
           <div class="lbl">
@@ -1852,7 +2089,8 @@ function renderSettings(){
             <div class="sub" style="margin-top:6px">
               ${cloudState.connected
                 ? `${cloudState.fileCount} 個檔案 · ${cloudState.cardCount} 張卡片<br>
-                   最後同步：${cloudState.lastSync ? formatDate(cloudState.lastSync) : '—'}`
+                   最後同步：${cloudState.lastSync ? formatDate(cloudState.lastSync) : '—'}<br>
+                   效能：<span class="cacheBadge">${cacheInfo}</span>`
                 : '尚未完成首次同步'}
               <br>資料夾 ID：<code>${esc(cleanId)}</code>
               ${cloudState.error ? `<br><span style="color:#dc2626">錯誤：${esc(cloudState.error)}</span>` : ''}
@@ -1860,22 +2098,24 @@ function renderSettings(){
           </div>
           <div style="display:flex;gap:8px;flex-wrap:wrap">
             <button class="btn primary" id="syncNow">${cloudState.syncing ? '<span class="spinner"></span>同步中' : '🔄 立即同步'}</button>
+            <button class="btn ghost" id="uploadAllBtn">⬆️ 上傳全部分片</button>
             <button class="btn ghost" id="editCloud">✏️ 編輯</button>
             <button class="btn ghost" id="disconnectCloud" style="color:#dc2626;border-color:#dc2626">中斷</button>
           </div>
         </div>
         <div class="setrow">
           <div class="lbl">開啟時自動同步
-            <div class="sub">每次打開程式自動抓取雲端最新卡片</div>
+            <div class="sub">每次打開程式自動抓取雲端最新卡片（未變動的檔案使用快取）</div>
           </div>
           <input type="checkbox" id="autoSync" ${store.settings.autoSync ? 'checked' : ''}
                  style="width:20px;height:20px;cursor:pointer" />
         </div>
         <div class="setrow" style="border-bottom:0">
           <div class="sub" style="font-size:12px;line-height:1.7">
-            ☁️ 卡片：從雲端資料夾下載（.xlsx / .csv）<br>
-            💾 進度：以「正面+背面」為 key，換裝置也能正確接續<br>
-            📌 兩套進度（視覺/聽力）都自動上傳到 <code>_progress.json</code>
+            📦 <b>分片架構</b>：進度分成 10 片（<code>_progress_00.json</code> ~ <code>_progress_09.json</code>），評分時只上傳 1 片<br>
+            💾 <b>卡片快取</b>：IndexedDB 儲存已下載的 Excel，未變動不重新下載<br>
+            📅 <b>月度日誌</b>：每次評分只 append 到當月日誌（最多 5000 筆）<br>
+            🔧 <b>換裝置</b>：貼上同樣的網址與資料夾 ID，進度即接續
           </div>
         </div>
       ` : `
@@ -1909,19 +2149,36 @@ function renderSettings(){
         <details>
           <summary>📖 如何設定？（首次使用必看）</summary>
           <ol class="steps">
-            <li>在 Google Drive 建立一個資料夾，把 <code>.xlsx</code> / <code>.csv</code> 卡片放進去<br>
+            <li>在 Google Drive 建立一個資料夾，放入 <code>.xlsx</code> / <code>.csv</code> 卡片檔<br>
               <span class="muted" style="font-size:12px">每個檔案 = 一個牌組，第一列需有「正面」「背面」欄位</span>
             </li>
-            <li>複製資料夾網址（整條貼進來也可以，程式會自動抓 ID）</li>
             <li>前往 <a href="https://script.google.com" target="_blank" style="color:var(--pri)">script.google.com</a> → 新增專案</li>
-            <li>貼上後端程式碼，然後 <b>部署 → 新增部署 → 網頁應用程式</b><br>
+            <li>貼上<b>最新的後端程式碼</b>（分片版本，見說明），然後 <b>部署 → 新增部署 → 網頁應用程式</b><br>
               <span class="muted" style="font-size:12px">執行身分：我　·　存取權：任何人</span>
             </li>
             <li>複製 Web App URL（結尾 <code>/exec</code>），貼到上方欄位</li>
-            <li>按「連接並同步」，完成！</li>
+            <li>貼上資料夾網址，按「連接並同步」</li>
           </ol>
         </details>
       `}
+    </div>
+
+    <div class="panel" style="margin-bottom:13px">
+      <h3>⚡ 效能資訊</h3>
+      <div class="setrow">
+        <div class="lbl">卡片快取
+          <div class="sub">已下載的 Excel 存在本機 IndexedDB，未變動不重新下載</div>
+        </div>
+        <button class="btn ghost" id="clearCacheBtn">🗑 清除快取</button>
+      </div>
+      <div class="setrow" style="border-bottom:0">
+        <div class="sub" style="font-size:12px;line-height:1.7">
+          <b>進度分片</b>：${PROGRESS_SHARDS} 片，每片約 ${Math.ceil((total => 0))}${Math.max(1, Math.round(store.cards.length / PROGRESS_SHARDS))} 張卡片<br>
+          <b>本機進度筆數</b>：視覺 ${Object.keys(store.progress.visual).length} · 聽力 ${Object.keys(store.progress.listen).length}<br>
+          <b>本機日誌筆數</b>：${store.logs.length}<br>
+          <b>待上傳分片</b>：${dirtyShards.size} 片 ${logDirty ? '· 日誌待上傳' : ''}
+        </div>
+      </div>
     </div>
 
     <div class="panel" style="margin-bottom:13px">
@@ -1947,7 +2204,7 @@ function renderSettings(){
     <div class="panel" style="margin-bottom:13px">
       <h3>🔊 語音設定</h3>
       <div class="setrow">
-        <div class="lbl">預設語言<div class="sub">非中文內容將使用此語言發音</div></div>
+        <div class="lbl">預設語言</div>
         <select id="setLang" class="input">
           ${[
             ['en-US','英語（美）'],['en-GB','英語（英）'],['ja-JP','日語'],
@@ -1962,7 +2219,7 @@ function renderSettings(){
                value="${store.settings.rate}" style="width:200px;max-width:100%" />
       </div>
       <div class="setrow">
-        <div class="lbl">聽力模式顯示正面文字<div class="sub">關閉＝純聽力挑戰</div></div>
+        <div class="lbl">聽力模式顯示正面文字</div>
         <input type="checkbox" id="setHint" ${store.settings.showFrontInListen ? 'checked' : ''}
                style="width:20px;height:20px;cursor:pointer" />
       </div>
@@ -1988,6 +2245,9 @@ function renderSettings(){
   if (ready){
     const syncBtn = $('#syncNow');
     if (syncBtn) syncBtn.onclick = () => syncFromCloud(false);
+    const upBtn = $('#uploadAllBtn');
+    if (upBtn) upBtn.onclick = uploadAllShards;
+
     $('#editCloud').onclick = () => {
       if (!confirm('編輯連線設定？會回到輸入畫面（目前進度不受影響）。')) return;
       cloudState.connected = false;
@@ -2029,11 +2289,10 @@ function renderSettings(){
 
       const fid = extractFolderId(rawId);
       if (!fid){
-        errBox.textContent = '❌ 無法辨識資料夾 ID。請確認貼上的是資料夾網址（含 /folders/），或直接貼純 ID。';
+        errBox.textContent = '❌ 無法辨識資料夾 ID。';
         errBox.style.display = 'block';
         return;
       }
-
       if (!url.includes('script.google.com') && !url.includes('googleusercontent.com')){
         if (!confirm('這看起來不是 Apps Script 網址，仍要繼續嗎？')) return;
       }
@@ -2052,12 +2311,19 @@ function renderSettings(){
         errBox.innerHTML = `❌ 連接失敗：${esc(cloudState.error || '未知錯誤')}<br>
           <span style="font-size:12px;color:#7f1d1d">
           請檢查：① Web App 網址結尾為 <code>/exec</code>　② 部署權限為「任何人」<br>
-          ③ 資料夾已放 .xlsx / .csv　④ 資料夾 ID 正確：<code>${esc(fid)}</code>
+          ③ 資料夾已放 .xlsx / .csv　④ Apps Script 已更新為分片版本
           </span>`;
         errBox.style.display = 'block';
       }
     };
   }
+
+  const clearCacheBtn = $('#clearCacheBtn');
+  if (clearCacheBtn) clearCacheBtn.onclick = async () => {
+    if (!confirm('清除本機快取的 Excel 檔案？\n\n下次同步會重新下載所有檔案。')) return;
+    await cacheClearAll();
+    toast('已清除快取');
+  };
 
   $('#expXlsx').onclick = exportExcel;
   $('#impBtn').onclick  = () => $('#fileInput').click();
@@ -2081,6 +2347,8 @@ function renderSettings(){
     if (!confirm('確定重置所有學習進度嗎？兩套進度都會清除，無法復原。')) return;
     store.progress = { visual:{}, listen:{} };
     store.logs = [];
+    markAllShardsDirty();
+    logDirty = true;
     save(); scheduleUpload();
     render(); toast('進度已重置');
   };
@@ -2088,13 +2356,15 @@ function renderSettings(){
     if (!confirm('確定清空全部資料嗎？')) return;
     if (!confirm('再次確認：這無法復原！（雲端卡片檔不會被刪）')) return;
     store = defaultStore();
+    markAllShardsDirty();
+    logDirty = true;
     save();
     render(); toast('已清空');
   };
 }
 
 /* =========================================================
-   13. Excel 匯出 / 匯入
+   14. Excel 匯出 / 匯入
    ========================================================= */
 function exportExcel(){
   if (!store.cards.length){ alert('目前沒有資料可以匯出'); return; }
@@ -2352,6 +2622,10 @@ function importExcel(file){
         }
       }
 
+      // 匯入後，全部標 dirty
+      markAllShardsDirty();
+      logDirty = true;
+
       save();
       scheduleUpload();
       session = null;
@@ -2371,7 +2645,7 @@ function importExcel(file){
 }
 
 /* =========================================================
-   14. 事件綁定與啟動
+   15. 事件綁定與啟動
    ========================================================= */
 $('#tabs').addEventListener('click', e => {
   const b = e.target.closest('button[data-tab]');
@@ -2405,10 +2679,10 @@ document.addEventListener('visibilitychange', () => {
     save();
   }
 
-  // 啟動時先遷移一次
   migrateProgressKeys();
 
   render();
+
   if (cloudReady() && store.settings.autoSync){
     await syncFromCloud(true);
   }
