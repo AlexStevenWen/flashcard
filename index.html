@@ -513,15 +513,6 @@ async function idbGet(key){
     r.onerror = () => reject(r.error);
   });
 }
-async function idbDel(key){
-  const db = await idb();
-  return new Promise((resolve, reject) => {
-    const tx = db.transaction('kv', 'readwrite');
-    tx.objectStore('kv').delete(key);
-    tx.oncomplete = resolve;
-    tx.onerror = () => reject(tx.error);
-  });
-}
 async function cacheGetCard(name){
   try { return await idbGet('card:' + name); } catch(e){ return null; }
 }
@@ -764,7 +755,6 @@ async function syncFromCloud(silent){
   try {
     const sep = cloudUrl.includes('?') ? '&' : '?';
 
-    // ========== 步驟 1：ping 檢查後端版本 ==========
     try {
       const pingRes = await fetch(`${cloudUrl}${sep}action=ping&folderId=${encodeURIComponent(folderId)}&_=${Date.now()}`);
       if (pingRes.ok){
@@ -777,7 +767,6 @@ async function syncFromCloud(silent){
       console.warn('[sync] 後端版本過舊，請更新 Apps Script 為分片版本');
     }
 
-    // ========== 步驟 2：檔案清單 ==========
     const listRes = await fetch(`${cloudUrl}${sep}action=list&folderId=${encodeURIComponent(folderId)}&_=${Date.now()}`);
     if (!listRes.ok) throw new Error('HTTP ' + listRes.status);
     const listData = await listRes.json();
@@ -788,7 +777,6 @@ async function syncFromCloud(silent){
     const decks = [];
     const fileErrors = [];
 
-    // ========== 步驟 3：逐檔下載卡片 ==========
     for (const f of files){
       try {
         const cached = await cacheGetCard(f.name);
@@ -825,7 +813,6 @@ async function syncFromCloud(silent){
       applyDecks(decks);
     }
 
-    // ========== 步驟 4：讀雲端分片，用時間戳合併 ==========
     const shardResults = await Promise.all(
       Array.from({ length: PROGRESS_SHARDS }, (_, i) =>
         fetch(`${cloudUrl}${sep}action=getFile&folderId=${encodeURIComponent(folderId)}&name=${encodeURIComponent(shardName(i))}&_=${Date.now()}`)
@@ -844,7 +831,6 @@ async function syncFromCloud(silent){
     for (let i = 0; i < PROGRESS_SHARDS; i++){
       const r = shardResults[i];
 
-      // 取本地此分片資料
       const localV = {}, localL = {};
       Object.keys(store.progress.visual).forEach(k => {
         if (shardOf(k) === i) localV[k] = store.progress.visual[k];
@@ -853,7 +839,6 @@ async function syncFromCloud(silent){
         if (shardOf(k) === i) localL[k] = store.progress.listen[k];
       });
 
-      // 取雲端此分片資料
       let cloudV = {}, cloudL = {};
       let cloudExists = false;
 
@@ -871,10 +856,8 @@ async function syncFromCloud(silent){
         shardsNotFound++;
       }
 
-      // 合併（時間戳為準）
       const { v, l, localNewer } = mergeShardData(localV, localL, cloudV, cloudL);
 
-      // 清空本地此分片，寫回合併結果
       Object.keys(store.progress.visual).forEach(k => {
         if (shardOf(k) === i) delete store.progress.visual[k];
       });
@@ -884,7 +867,6 @@ async function syncFromCloud(silent){
       Object.assign(store.progress.visual, v);
       Object.assign(store.progress.listen, l);
 
-      // 決定是否上傳此分片
       if (cloudExists){
         if (localNewer){
           dirtyShards.add(i);
@@ -905,7 +887,6 @@ async function syncFromCloud(silent){
       }
     }
 
-    // ========== 步驟 5：雲端完全沒分片（首次使用）→ 上傳本地 ==========
     if (shardsReadOk === 0 && shardsNotFound === PROGRESS_SHARDS){
       const localHasAny = Object.keys(store.progress.visual).length > 0 ||
                           Object.keys(store.progress.listen).length > 0;
@@ -915,7 +896,6 @@ async function syncFromCloud(silent){
       }
     }
 
-    // 舊格式 _progress.json 遷移（僅在雲端無分片時嘗試）
     if (shardsReadOk === 0 && shardsWithContent === 0){
       try {
         const legacyRes = await fetch(`${cloudUrl}${sep}action=getFile&folderId=${encodeURIComponent(folderId)}&name=_progress.json&_=${Date.now()}`);
@@ -934,7 +914,6 @@ async function syncFromCloud(silent){
                 legacyL[k] = JSON.parse(JSON.stringify(pr[k]));
               });
             }
-            // 用舊備份合併本地（時間戳為準）
             const merged = mergeShardData(store.progress.visual, store.progress.listen, legacyV, legacyL);
             store.progress.visual = merged.v;
             store.progress.listen = merged.l;
@@ -946,7 +925,6 @@ async function syncFromCloud(silent){
       } catch(e){}
     }
 
-    // ========== 步驟 6：讀月度日誌（合併，不覆蓋） ==========
     try {
       const ym = monthKey();
       const logRes = await fetch(`${cloudUrl}${sep}action=getFile&folderId=${encodeURIComponent(folderId)}&name=${encodeURIComponent('_logs_' + ym + '.json')}&_=${Date.now()}`);
@@ -981,7 +959,6 @@ async function syncFromCloud(silent){
     save();
     if (!session) render(); else updateHeader();
 
-    // 有需要上傳的分片 → 觸發上傳
     if (dirtyShards.size > 0){
       scheduleUpload();
     }
@@ -1009,7 +986,6 @@ async function syncFromCloud(silent){
   }
 }
 
-/* 合併單一分片：每個 cardKey 獨立比 last 時間戳，取較新的 */
 function mergeShardData(localV, localL, cloudV, cloudL){
   const outV = Object.assign({}, cloudV);
   const outL = Object.assign({}, cloudL);
@@ -1213,7 +1189,6 @@ async function uploadAllShards(){
   }
 }
 
-/* 診斷：逐檔測試下載與解析 */
 async function diagnoseCloud(){
   const cloudUrl = store.settings.cloudUrl;
   const folderId = getCleanFolderId();
@@ -1289,37 +1264,129 @@ async function diagnoseCloud(){
 }
 
 /* =========================================================
-   7. 語音
+   7. 語音（穩健版）
    ========================================================= */
 let voices = [];
-function loadVoices(){ voices = window.speechSynthesis ? speechSynthesis.getVoices() : []; }
+let voicesReady = false;
+
+function loadVoices(){
+  if (!window.speechSynthesis) return;
+  try {
+    const list = speechSynthesis.getVoices();
+    if (list && list.length > 0){
+      voices = list;
+      voicesReady = true;
+      console.log('[語音] 已載入 ' + voices.length + ' 個語音');
+    }
+  } catch(e){ console.warn(e); }
+}
+
 if (window.speechSynthesis){
   loadVoices();
   speechSynthesis.onvoiceschanged = loadVoices;
+  setTimeout(loadVoices, 100);
+  setTimeout(loadVoices, 500);
+  setTimeout(loadVoices, 1500);
+  setTimeout(loadVoices, 3000);
 }
+
+function pickVoiceForLang(lang){
+  if (!voices.length) return null;
+  const target = String(lang).toLowerCase().replace('_', '-');
+  const targetPrimary = target.split('-')[0];
+
+  let v = voices.find(x => (x.lang || '').toLowerCase().replace('_', '-') === target);
+  if (v) return v;
+
+  const candidates = voices.filter(x => {
+    const l = (x.lang || '').toLowerCase().replace('_', '-');
+    return l === targetPrimary || l.startsWith(targetPrimary + '-');
+  });
+  if (candidates.length){
+    const def = candidates.find(c => c.default);
+    return def || candidates[0];
+  }
+  return null;
+}
+
 function pickLang(text){
   const t = String(text || '');
   if (/[\u3040-\u30ff]/.test(t)) return 'ja-JP';
   if (/[\uac00-\ud7af]/.test(t)) return 'ko-KR';
-  if (/[\u4e00-\u9fff]/.test(t)) return 'zh-TW';
+  if (/[\u4e00-\u9fff]/.test(t)) return store.settings.lang === 'zh-CN' ? 'zh-CN' : 'zh-TW';
   return store.settings.lang || 'en-US';
 }
+
+let speakSeq = 0;
 function speak(text, lang){
   if (!window.speechSynthesis || !text) return;
-  try {
-    speechSynthesis.cancel();
-    const u = new SpeechSynthesisUtterance(String(text));
-    const L = lang || pickLang(text);
-    u.lang = L;
-    const norm = v => (v.lang || '').replace('_', '-').toLowerCase();
-    const target = L.toLowerCase();
-    const v = voices.find(x => norm(x) === target)
-           || voices.find(x => norm(x).startsWith(target.split('-')[0]));
-    if (v) u.voice = v;
-    u.rate = Number(store.settings.rate) || 0.9;
-    u.pitch = 1;
-    speechSynthesis.speak(u);
-  } catch(e){ console.warn(e); }
+
+  if (!voicesReady) loadVoices();
+
+  const L = lang || pickLang(text);
+  const s = String(text);
+
+  const mySeq = ++speakSeq;
+
+  try { speechSynthesis.cancel(); } catch(e){}
+
+  const u = new SpeechSynthesisUtterance(s);
+  u.lang = L;
+  u.rate = Number(store.settings.rate) || 0.9;
+  u.pitch = 1;
+  u.volume = 1;
+
+  const voice = pickVoiceForLang(L);
+  if (voice){
+    u.voice = voice;
+    console.log(`[語音] "${s.slice(0,20)}" → ${L} / ${voice.name}`);
+  } else {
+    console.warn(`[語音] 找不到 ${L} 的語音，使用系統預設。已載入：${voices.map(v=>v.lang).join(', ')}`);
+  }
+
+  setTimeout(() => {
+    if (mySeq !== speakSeq) return;
+    try {
+      speechSynthesis.speak(u);
+    } catch(e){ console.warn(e); }
+  }, 80);
+}
+
+function showVoiceDebug(){
+  if (!window.speechSynthesis){
+    alert('此瀏覽器不支援語音合成');
+    return;
+  }
+  loadVoices();
+  const testTexts = {
+    'en-US': 'Hello, this is English.',
+    'ja-JP': 'こんにちは、日本語です。',
+    'ko-KR': '안녕하세요, 한국어입니다.',
+    'zh-TW': '你好，這是中文。',
+  };
+
+  const voiceList = voices.length
+    ? voices.map(v => `  ${v.lang.padEnd(8)} ${v.name}${v.default ? ' (預設)' : ''}`).join('\n')
+    : '  （未載入任何語音）';
+
+  const testLines = Object.keys(testTexts).map(l => {
+    const v = pickVoiceForLang(l);
+    return `  ${l}: ${v ? v.name + ' / ' + v.lang : '❌ 找不到'}`;
+  }).join('\n');
+
+  const msg =
+    `已載入 ${voices.length} 個語音：\n${voiceList}\n\n` +
+    `語言對應結果：\n${testLines}\n\n` +
+    `是否要播放測試？（按確定後會依序唸 4 種語言）`;
+
+  if (confirm(msg)){
+    const langs = Object.keys(testTexts);
+    langs.forEach((l, i) => {
+      setTimeout(() => {
+        speak(testTexts[l], l);
+      }, i * 1500);
+    });
+  }
 }
 
 /* =========================================================
@@ -2484,7 +2551,10 @@ function renderSettings(){
       </div>
       <div class="setrow">
         <div class="lbl">測試發音</div>
-        <button class="btn ghost" id="testSpeak">🔊 Hello, 你好</button>
+        <div style="display:flex;gap:8px;flex-wrap:wrap">
+          <button class="btn ghost" id="testSpeak">🔊 Hello, 你好</button>
+          <button class="btn ghost" id="debugVoice">🎙️ 語音偵錯</button>
+        </div>
       </div>
     </div>
 
@@ -2603,6 +2673,8 @@ function renderSettings(){
   };
   $('#setHint').onchange = e => { store.settings.showFrontInListen = e.target.checked; save(); };
   $('#testSpeak').onclick = () => speak('Hello, 你好');
+  const debugBtn = $('#debugVoice');
+  if (debugBtn) debugBtn.onclick = showVoiceDebug;
 
   $('#resetProgress').onclick = () => {
     if (!confirm('確定重置所有學習進度嗎？兩套進度都會清除，無法復原。')) return;
